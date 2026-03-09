@@ -6,10 +6,15 @@ import { motion } from 'framer-motion'
 import { supabase } from "@/lib/supabase"
 
 const GRADES = ["S+", "S", "S-", "NP"]
-interface StudentProfile {
-  id: string;
-  student_id: string | null;
-  email: string;
+
+interface InitialSession {
+  date: string
+  rpc: string
+  duration: string
+  flightType: string
+  timeLabel: string
+  studentId?: string
+  instructorId?: string
 }
 
 const PPL_SECTIONS = [
@@ -27,34 +32,92 @@ const PPL_SECTIONS = [
   }
 ]
 
-// Note: I changed 'role' to accept any string to prevent database mismatch errors
-export default function PPLGradingForm({ onClose, instructorName, role }: { onClose: () => void, instructorName: string, role: string }) {
-  const [students, setStudents] = useState<StudentProfile[]>([])
+export default function PPLGradingForm({
+  onClose,
+  instructorName,
+  role,
+  initialSession,
+}: {
+  onClose: () => void
+  instructorName: string
+  role: string
+  initialSession?: InitialSession
+}) {
   const [selectedStudent, setSelectedStudent] = useState("")
+  const [studentPilotLabel, setStudentPilotLabel] = useState(initialSession?.studentId || "N/A")
+  const [resolvedInstructorName, setResolvedInstructorName] = useState(instructorName)
   const [lessonNo, setLessonNo] = useState("")
-  const [rpc, setRpc] = useState("")
-  const [duration, setDuration] = useState("")
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [rpc, setRpc] = useState(initialSession?.rpc || "")
+  const [duration, setDuration] = useState(initialSession?.duration || "")
+  const [date, setDate] = useState(initialSession?.date || new Date().toISOString().split('T')[0])
   const [formData, setFormData] = useState<Record<string, { grade: string, remark: string }>>({})
 
-  // BULLETPROOF CHECK: Converts to lowercase. If it's not exactly "instructor", treat as student.
-  const isStudent = role?.toLowerCase() !== "instructor";
+  const isInstructor = role?.toLowerCase() === "instructor";
+  const canEditLessonNo = !isInstructor
+  const canEditInstructorSection = isInstructor
 
   useEffect(() => {
-    const fetchStudents = async () => {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, student_id, email')
-        .eq('role', 'student')
+    const resolveSessionActors = async () => {
+      let resolvedStudentId = String(initialSession?.studentId || "").trim()
+      let resolvedStudentLabel = resolvedStudentId
 
-      if (data) setStudents(data as StudentProfile[])
-      if (error) console.error(error)
+      if (!isInstructor) {
+        const { data: authData } = await supabase.auth.getUser()
+        if (!authData.user) return
+
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("id, student_id, email")
+          .eq("id", authData.user.id)
+          .single()
+
+        if (!error && data) {
+          setSelectedStudent(data.id)
+          resolvedStudentId = String(data.student_id || "").trim()
+          resolvedStudentLabel = resolvedStudentId || String(data.email || "").trim()
+        }
+      } else if (resolvedStudentId) {
+        setSelectedStudent(resolvedStudentId)
+      }
+
+      if (resolvedStudentId) {
+        const studentCandidates = [...new Set([resolvedStudentId, resolvedStudentId.toUpperCase(), resolvedStudentId.toLowerCase()])]
+        const { data: studentRows } = await supabase
+          .from("student_info")
+          .select("student_id, full_name")
+          .in("student_id", studentCandidates)
+          .limit(1)
+
+        const fullName = String(studentRows?.[0]?.full_name || "").trim()
+        if (fullName) resolvedStudentLabel = fullName
+      }
+      setStudentPilotLabel(resolvedStudentLabel || resolvedStudentId || "N/A")
+
+      const rawInstructorId = (initialSession?.instructorId || "").trim()
+      if (!rawInstructorId) {
+        setResolvedInstructorName(instructorName)
+        return
+      }
+
+      const candidates = [...new Set([rawInstructorId, rawInstructorId.toUpperCase(), rawInstructorId.toLowerCase()])]
+      const { data, error } = await supabase
+        .from("instructor_info")
+        .select("full_name, instructor_id")
+        .in("instructor_id", candidates)
+        .limit(1)
+
+      if (!error && data?.[0]?.full_name) {
+        setResolvedInstructorName(data[0].full_name)
+      } else {
+        setResolvedInstructorName(rawInstructorId || instructorName)
+      }
     }
-    fetchStudents()
-  }, [])
+
+    resolveSessionActors()
+  }, [initialSession, instructorName, isInstructor])
 
   const handleUpdate = (item: string, field: 'grade' | 'remark', value: string) => {
-    if (isStudent) return // Students cannot edit grading items
+    if (!canEditInstructorSection) return // Students cannot edit grading items
     setFormData(prev => ({
       ...prev,
       [item]: { ...prev[item], [field]: value }
@@ -84,68 +147,73 @@ export default function PPLGradingForm({ onClose, instructorName, role }: { onCl
           
           <div className="space-y-8">
             {/* SESSION METADATA BLOCK */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+            <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm transition-opacity ${canEditLessonNo ? "opacity-100" : "opacity-55"}`}>
               <div className="space-y-1">
                 <label className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2"><User size={12}/> Student Pilot</label>
-                <select 
-                  disabled={isStudent} 
-                  className={`w-full p-2 rounded-lg border-none text-sm font-bold focus:ring-2 focus:ring-blue-900 ${isStudent ? "bg-slate-100 cursor-not-allowed text-slate-500" : "bg-slate-50"}`}
-                  value={selectedStudent}
-                  onChange={(e) => setSelectedStudent(e.target.value)}
-                >
-                  <option value="">Select Student...</option>
-                  {students.map(s => <option key={s.id} value={s.id}>{s.student_id || s.email}</option>)}
-                </select>
+                <input
+                  disabled
+                  value={studentPilotLabel}
+                  className="w-full p-2 rounded-lg text-sm font-bold text-slate-500 cursor-not-allowed bg-slate-100"
+                />
               </div>
 
               <div className="space-y-1">
                 <label className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2"><PenTool size={12}/> Flight Instructor</label>
                 {/* Always disabled because auto-filled with current instructor's name */}
-                <input disabled value={instructorName} className="w-full p-2 rounded-lg text-sm font-bold text-slate-500 cursor-not-allowed bg-slate-100" />
+                <input disabled value={resolvedInstructorName} className="w-full p-2 rounded-lg text-sm font-bold text-slate-500 cursor-not-allowed bg-slate-100" />
               </div>
 
               <div className="space-y-1">
                 <label className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2"><Hash size={12}/> Lesson No.</label>
                 <input 
-                  disabled={isStudent} 
+                  disabled={!canEditLessonNo} 
                   type="text" value={lessonNo} onChange={(e) => setLessonNo(e.target.value)} placeholder="e.g. 18" 
-                  className={`w-full p-2 rounded-lg border-none text-sm font-bold ${isStudent ? "bg-slate-100 cursor-not-allowed text-slate-500" : "bg-slate-50"}`} 
+                  className={`w-full p-2 rounded-lg border-none text-sm font-bold ${!canEditLessonNo ? "bg-slate-100 cursor-not-allowed text-slate-500" : "bg-slate-50"}`} 
                 />
               </div>
 
               <div className="space-y-1">
                 <label className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2"><Calendar size={12}/> Date</label>
                 <input 
-                  disabled={isStudent} 
+                  disabled
                   type="date" value={date} onChange={(e) => setDate(e.target.value)}
-                  className={`w-full p-2 rounded-lg border-none text-sm font-bold ${isStudent ? "bg-slate-100 cursor-not-allowed text-slate-500" : "bg-slate-50"}`} 
+                  className="w-full p-2 rounded-lg border-none text-sm font-bold bg-slate-100 cursor-not-allowed text-slate-500"
                 />
               </div>
 
               <div className="space-y-1">
                 <label className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2"><Plane size={12}/> RPC</label>
                 <input 
-                  disabled={isStudent} 
+                  disabled
                   type="text" value={rpc} onChange={(e) => setRpc(e.target.value)} placeholder="e.g. RP-C1984"
-                  className={`w-full p-2 rounded-lg border-none text-sm font-bold ${isStudent ? "bg-slate-100 cursor-not-allowed text-slate-500" : "bg-slate-50"}`} 
+                  className="w-full p-2 rounded-lg border-none text-sm font-bold bg-slate-100 cursor-not-allowed text-slate-500"
                 />
               </div>
 
               <div className="space-y-1">
                 <label className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2"><Clock size={12}/> Duration</label>
                 <input 
-                  disabled={isStudent} 
+                  disabled
                   type="text" value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="e.g. 1.5 Hours"
-                  className={`w-full p-2 rounded-lg border-none text-sm font-bold ${isStudent ? "bg-slate-100 cursor-not-allowed text-slate-500" : "bg-slate-50"}`} 
+                  className="w-full p-2 rounded-lg border-none text-sm font-bold bg-slate-100 cursor-not-allowed text-slate-500"
                 />
               </div>
+
+              {initialSession && (
+                <div className="space-y-1 lg:col-span-3">
+                  <label className="text-[10px] font-black uppercase text-slate-400">Assigned Session</label>
+                  <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">
+                    {initialSession.timeLabel} - {initialSession.flightType}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* GRADING ITEMS */}
             {PPL_SECTIONS.map((section) => (
               <section key={section.title} className="space-y-4">
                 <h3 className="text-xs font-black uppercase text-blue-900 tracking-[0.2em] border-l-4 border-blue-900 pl-3">{section.title}</h3>
-                <div className="space-y-3">
+                <div className={`space-y-3 transition-opacity ${canEditInstructorSection ? "opacity-100" : "opacity-55"}`}>
                   {section.items.map((item) => (
                     <div key={item} className="bg-white border border-slate-100 rounded-xl overflow-hidden shadow-sm">
                       <div className="flex flex-col md:flex-row md:items-center justify-between p-4 gap-4">
@@ -157,10 +225,10 @@ export default function PPLGradingForm({ onClose, instructorName, role }: { onCl
                             <button
                               key={grade}
                               onClick={() => handleUpdate(item, 'grade', grade)}
-                              disabled={isStudent}
+                              disabled={!canEditInstructorSection}
                               className={`w-10 h-9 rounded-lg text-[10px] font-black border-2 transition-all ${
                                 formData[item]?.grade === grade ? 'bg-blue-900 border-blue-900 text-white' : 'bg-white border-slate-100 text-slate-400 hover:border-blue-900'
-                              } ${isStudent ? "opacity-50 cursor-not-allowed" : ""}`}
+                              } ${!canEditInstructorSection ? "opacity-50 cursor-not-allowed" : ""}`}
                             >
                               {grade}
                             </button>
@@ -171,8 +239,8 @@ export default function PPLGradingForm({ onClose, instructorName, role }: { onCl
                         <input 
                           type="text" 
                           placeholder="Item remark..."
-                          disabled={isStudent}
-                          className={`flex-1 rounded-lg border-none text-[11px] p-2 focus:ring-1 focus:ring-blue-900 ${isStudent ? "bg-slate-100 cursor-not-allowed text-slate-500" : "bg-slate-50"}`}
+                          disabled={!canEditInstructorSection}
+                          className={`flex-1 rounded-lg border-none text-[11px] p-2 focus:ring-1 focus:ring-blue-900 ${!canEditInstructorSection ? "bg-slate-100 cursor-not-allowed text-slate-500" : "bg-slate-50"}`}
                           onChange={(e) => handleUpdate(item, 'remark', e.target.value)}
                         />
                       </div>
@@ -188,10 +256,10 @@ export default function PPLGradingForm({ onClose, instructorName, role }: { onCl
                 onClick={onClose}
                 className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors"
               >
-                {isStudent ? "Close Sheet" : "Cancel"}
+                {canEditLessonNo ? "Close Sheet" : "Cancel"}
               </button>
               
-              {!isStudent && (
+              {canEditInstructorSection && (
                 <button 
                   className="px-6 py-3 bg-yellow-400 text-black border-2 border-black rounded-xl font-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-1 active:shadow-none transition-all flex items-center gap-2 uppercase tracking-wide"
                   onClick={() => {

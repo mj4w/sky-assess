@@ -7,6 +7,7 @@ import { ChevronRight, X } from "lucide-react"
 interface Props {
   open: boolean
   onClose: () => void
+  assignmentId?: string
 }
 
 const debriefCourses = [
@@ -16,7 +17,7 @@ const debriefCourses = [
   { code: "ME", name: "Multi-Engine Rating", color: "bg-purple-600" },
 ]
 
-export function DebriefCourseModal({ open, onClose }: Props) {
+export function DebriefCourseModal({ open, onClose, assignmentId }: Props) {
   if (!open) return null
 
   return (
@@ -52,10 +53,13 @@ export function DebriefCourseModal({ open, onClose }: Props) {
 
           <div className="grid gap-3">
 
-            {debriefCourses.map((course) => (
+            {debriefCourses.map((course) => {
+              const assignmentQuery = assignmentId ? `?assignment_id=${encodeURIComponent(assignmentId)}` : ""
+              return (
               <Link
                 key={course.code}
-                href={`/dashboard/debrief/${course.code.toLowerCase()}`}
+                href={`/dashboard/debrief/${course.code.toLowerCase()}${assignmentQuery}`}
+                onClick={onClose}
                 className="group flex items-center justify-between p-5 rounded-2xl border border-slate-100 hover:border-blue-900 hover:bg-blue-50/30 transition-all"
               >
 
@@ -79,7 +83,8 @@ export function DebriefCourseModal({ open, onClose }: Props) {
                 <ChevronRight size={16} className="text-slate-300 group-hover:text-blue-900" />
 
               </Link>
-            ))}
+              )
+            })}
 
           </div>
         </div>
