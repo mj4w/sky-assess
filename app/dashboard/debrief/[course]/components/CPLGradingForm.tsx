@@ -4,8 +4,10 @@ import React, { useEffect, useState } from "react"
 import { Plane, X, User, Calendar, Clock, Hash, PenTool, ClipboardCheck } from "lucide-react"
 import { motion } from "framer-motion"
 import { supabase } from "@/lib/supabase"
+import InstructorSignaturePad from "./InstructorSignaturePad"
 
 interface InitialSession {
+  lessonNo?: string
   date: string
   rpc: string
   duration: string
@@ -44,11 +46,12 @@ export default function CPLGradingForm({
 }) {
   const [studentPilotLabel, setStudentPilotLabel] = useState(initialSession?.studentId || "N/A")
   const [resolvedInstructorName, setResolvedInstructorName] = useState(instructorName)
-  const [lessonNo, setLessonNo] = useState("")
+  const [lessonNo, setLessonNo] = useState(initialSession?.lessonNo || "")
   const [rpc] = useState(initialSession?.rpc || "")
   const [duration] = useState(initialSession?.duration || "")
   const [date] = useState(initialSession?.date || new Date().toISOString().split("T")[0])
   const [formData, setFormData] = useState<Record<string, { duration: string; remark: string }>>({})
+  const [signatureDataUrl, setSignatureDataUrl] = useState("")
 
   const isInstructor = role?.toLowerCase() === "instructor"
   const canEditLessonNo = !isInstructor
@@ -192,6 +195,14 @@ export default function CPLGradingForm({
               </div>
             </section>
 
+            <div className={`transition-opacity ${canEditInstructorSection ? "opacity-100" : "opacity-55"}`}>
+              <InstructorSignaturePad
+                value={signatureDataUrl}
+                onChange={setSignatureDataUrl}
+                disabled={!canEditInstructorSection}
+              />
+            </div>
+
             <div className="pt-8 pb-4 flex justify-end gap-4 border-t border-slate-200 mt-8">
               <button onClick={onClose} className="px-6 py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">
                 {canEditLessonNo ? "Close Sheet" : "Cancel"}
@@ -199,7 +210,13 @@ export default function CPLGradingForm({
               {canEditInstructorSection && (
                 <button
                   className="px-6 py-3 rounded-xl font-black bg-blue-900 text-white hover:bg-blue-800 transition-colors flex items-center gap-2 uppercase tracking-wide"
-                  onClick={() => onClose()}
+                  onClick={() => {
+                    if (!signatureDataUrl) {
+                      alert("Instructor signature is required before submitting.")
+                      return
+                    }
+                    onClose()
+                  }}
                 >
                   <ClipboardCheck size={18} />
                   Submit Debriefing

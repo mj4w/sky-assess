@@ -68,38 +68,29 @@ export default function InstructorEvaluationPage() {
   useEffect(() => {
     const loadInstructors = async () => {
       if (!pilotData || pilotData.role !== "student") return
-      const studentId = String(pilotData.student_id || "").trim()
-      if (!studentId) return
-      const studentCandidates = [...new Set([studentId, studentId.toUpperCase(), studentId.toLowerCase()])]
+      const { data: infoRows, error } = await supabase
+        .from("instructor_info")
+        .select("instructor_id, full_name")
+        .order("full_name", { ascending: true })
+        .order("instructor_id", { ascending: true })
 
-      const { data } = await supabase
-        .from("flight_ops_assignments")
-        .select("instructor_id")
-        .in("student_id", studentCandidates)
-
-      const instructorIds = [...new Set((data || []).map((r) => String(r.instructor_id || "").trim()).filter(Boolean))]
-      if (instructorIds.length === 0) {
+      if (error) {
         setInstructors([])
         return
       }
 
-      const instructorCandidates = [...new Set(instructorIds.flatMap((id) => [id, id.toUpperCase(), id.toLowerCase()]))]
-      const { data: infoRows } = await supabase
-        .from("instructor_info")
-        .select("instructor_id, full_name")
-        .in("instructor_id", instructorCandidates)
+      const options = (infoRows || [])
+        .map((row) => {
+          const instructorId = String(row.instructor_id || "").trim()
+          const fullName = String(row.full_name || "").trim()
+          if (!instructorId) return null
+          return {
+            id: instructorId.toLowerCase(),
+            label: fullName || instructorId,
+          }
+        })
+        .filter((item): item is InstructorOption => Boolean(item))
 
-      const nameMap: Record<string, string> = {}
-      ;(infoRows || []).forEach((row) => {
-        const key = String(row.instructor_id || "").toLowerCase()
-        const fullName = String(row.full_name || "").trim()
-        if (key && fullName) nameMap[key] = fullName
-      })
-
-      const options = instructorIds.map((id) => ({
-        id: id.toLowerCase(),
-        label: nameMap[id.toLowerCase()] || id,
-      }))
       setInstructors(options)
       if (!selectedInstructorId && options[0]) setSelectedInstructorId(options[0].id)
     }

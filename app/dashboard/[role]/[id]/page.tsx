@@ -62,6 +62,7 @@ export default function DashboardPage() {
   const { pilotData, loading, error } = usePilotData()
   const [showDebriefModal, setShowDebriefModal] = useState(false);
   const [assignmentUnreadCount, setAssignmentUnreadCount] = useState(0)
+  const [debriefUnreadCount, setDebriefUnreadCount] = useState(0)
   const [nextSessionLabel, setNextSessionLabel] = useState("TBD")
   const [nextSessionSub, setNextSessionSub] = useState("Upcoming UTC")
   const isInstructor = pilotData?.role === 'instructor'
@@ -107,6 +108,36 @@ export default function DashboardPage() {
     }
 
     loadUnreadCount()
+  }, [pilotData])
+
+  useEffect(() => {
+    const loadDebriefUnreadCount = async () => {
+      if (!pilotData || pilotData.role !== "student") {
+        setDebriefUnreadCount(0)
+        return
+      }
+
+      const studentId = String(pilotData.student_id || "").trim()
+      if (!studentId) {
+        setDebriefUnreadCount(0)
+        return
+      }
+
+      const studentCandidates = [...new Set([studentId, studentId.toLowerCase(), studentId.toUpperCase()])]
+      const { data, error: fetchError } = await supabase
+        .from("ppl_debriefs")
+        .select("id, notify")
+        .in("student_id", studentCandidates)
+
+      if (fetchError || !data) {
+        setDebriefUnreadCount(0)
+        return
+      }
+
+      setDebriefUnreadCount(data.filter((row) => !Boolean(row.notify)).length)
+    }
+
+    loadDebriefUnreadCount()
   }, [pilotData])
 
   useEffect(() => {
@@ -220,6 +251,7 @@ export default function DashboardPage() {
                 title="Debriefing" 
                 description="Post-flight notes & logs." 
                 icon={<MessageSquare size={20} />} 
+                badgeCount={debriefUnreadCount}
               />
             </div>
           </div>

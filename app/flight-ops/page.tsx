@@ -173,6 +173,8 @@ export default function DispatchCalendar() {
   const [selectedStudentId, setSelectedStudentId] = useState("")
   const [selectedInstructorId, setSelectedInstructorId] = useState("")
   const [selectedType, setSelectedType] = useState<SlotType>("PS")
+  const [notifyStudentByEmail, setNotifyStudentByEmail] = useState(true)
+  const [notifyInstructorByEmail, setNotifyInstructorByEmail] = useState(true)
   const [dragSelection, setDragSelection] = useState<{ fleetType: string; registry: string; start: number; end: number } | null>(null)
   const [selectedWarning, setSelectedWarning] = useState<(typeof warningOptions)[number]>("100-HOUR INSPECTION")
   const [customWarning, setCustomWarning] = useState("")
@@ -305,6 +307,8 @@ export default function DispatchCalendar() {
     setSelectedStudentId((prev) => prev || studentOptions[0]?.id || "")
     setSelectedInstructorId((prev) => prev || instructorOptions[0]?.id || "")
     setSelectedType("PS")
+    setNotifyStudentByEmail(true)
+    setNotifyInstructorByEmail(true)
     setModalError(null)
   }
 
@@ -402,6 +406,81 @@ export default function DispatchCalendar() {
       setModalError(insertResult.error.message)
       setSavingBooking(false)
       return
+    }
+
+    const sendNotificationEmail = async (recipientEmail: string, recipientName: string, recipientRole: "student" | "instructor") => {
+      const response = await fetch("/api/flight-ops/notify-assignment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: recipientEmail,
+          recipientName,
+          recipientRole,
+          opDate: dateValue,
+          aircraftType: createModal.fleetType,
+          aircraftRegistry: createModal.registry,
+          timeRange: getRangeText(createModal.slotIndex, createModal.slotSpan),
+          flightType: selectedType,
+        }),
+      })
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.error || "Failed to send assignment notification email.")
+      }
+    }
+
+    try {
+      const selectedStudent = studentOptions.find((option) => option.id === (student?.id || selectedStudentId))
+      const selectedInstructor = instructorOptions.find((option) => option.id === (instructor?.id || selectedInstructorId))
+      const emailTasks: Promise<void>[] = []
+      const notificationIssues: string[] = []
+
+      if (notifyStudentByEmail) {
+        const { data: studentProfileRows, error: studentProfileError } = await supabase
+          .from("profiles")
+          .select("email")
+          .ilike("student_id", student?.id || selectedStudentId)
+          .limit(1)
+
+        if (studentProfileError) throw studentProfileError
+        const studentEmail = String(studentProfileRows?.[0]?.email || "").trim()
+        if (!studentEmail) {
+          notificationIssues.push("Student email not found in profiles.")
+        } else {
+          emailTasks.push(
+            sendNotificationEmail(studentEmail, selectedStudent?.fullName || student?.id || selectedStudentId, "student")
+          )
+        }
+      }
+
+      if (notifyInstructorByEmail) {
+        const { data: instructorProfileRows, error: instructorProfileError } = await supabase
+          .from("profiles")
+          .select("email")
+          .ilike("instructor_id", instructor?.id || selectedInstructorId)
+          .limit(1)
+
+        if (instructorProfileError) throw instructorProfileError
+        const instructorEmail = String(instructorProfileRows?.[0]?.email || "").trim()
+        if (!instructorEmail) {
+          notificationIssues.push("Instructor email not found in profiles.")
+        } else {
+          emailTasks.push(
+            sendNotificationEmail(instructorEmail, selectedInstructor?.fullName || instructor?.id || selectedInstructorId, "instructor")
+          )
+        }
+      }
+
+      if (emailTasks.length > 0) {
+        await Promise.all(emailTasks)
+      }
+      if (notificationIssues.length > 0) {
+        alert(`Assignment saved. ${notificationIssues.join(" ")}`)
+      }
+    } catch (notificationError) {
+      const message = notificationError instanceof Error ? notificationError.message : "Failed to send notification email."
+      alert(`Assignment saved, but notification failed: ${message}`)
     }
 
     const nextBooking: Booking = {
@@ -816,6 +895,28 @@ export default function DispatchCalendar() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Email Notification</p>
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={notifyStudentByEmail}
+                    onChange={(e) => setNotifyStudentByEmail(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-blue-900"
+                  />
+                  Notify Student
+                </label>
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={notifyInstructorByEmail}
+                    onChange={(e) => setNotifyInstructorByEmail(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-blue-900"
+                  />
+                  Notify Instructor
+                </label>
               </div>
 
               {modalError && <p className="text-xs font-semibold text-red-600">{modalError}</p>}

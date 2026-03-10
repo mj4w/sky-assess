@@ -31,6 +31,7 @@ const FormInput = ({ label, icon: Icon, rightElement, ...props }: any) => (
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const nextUrl = searchParams.get("next");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -61,8 +62,8 @@ export default function LoginPage() {
         
       // console.group("🚨 DATABASE SNAPSHOT ", allProfiles);
       if (!emailToLogin.includes("@")) {
-        const rawId = emailToLogin.trim();
-        const idCandidates = [...new Set([rawId, rawId.toUpperCase(), rawId.toLowerCase()])];
+        const normalizedId = emailToLogin.trim().toLowerCase();
+        const idCandidates = [normalizedId];
         
         // console.log("🔍 Starting ID Resolution for:", rawId);
         // console.log("📋 Testing Candidates:", idCandidates);
@@ -76,7 +77,7 @@ export default function LoginPage() {
           const { data: instructorRows, error: instructorError } = await supabase
             .from("profiles")
             .select("email, instructor_id, student_id")
-            .eq("instructor_id", candidate)
+            .ilike("instructor_id", candidate)
             .limit(1);
 
           if (instructorError) {
@@ -100,7 +101,7 @@ export default function LoginPage() {
             const { data: studentRows, error: studentError } = await supabase
               .from("profiles")
               .select("email")
-              .eq("student_id", candidate)
+              .ilike("student_id", candidate)
               .limit(1);
 
             if (studentError) throw studentError;
@@ -132,6 +133,10 @@ export default function LoginPage() {
       }
       
       if (data.user) {
+        if (nextUrl && nextUrl.startsWith("/")) {
+          router.push(nextUrl);
+          return;
+        }
         // console.log("🎉 Login Successful for User ID:", data.user.id);
         const { data: profile } = await supabase.from("profiles").select("role").eq("id", data.user.id).single();
         if (profile?.role === "admin") {
@@ -228,7 +233,7 @@ export default function LoginPage() {
               label="Instructor/Student ID or Email" 
               icon={User} 
               type="text" 
-              placeholder="INST-001 / STD-001 / email@example.com" 
+              placeholder="Student | Instructor Last Name / email@example.com" 
               required 
               onChange={handleInputChange} 
             />
@@ -275,7 +280,7 @@ export default function LoginPage() {
 
           <div className="pt-6 border-t border-slate-100 flex flex-col items-center gap-4">
             <p className="text-sm text-slate-500">
-              New personnel? <Link href="/register" className="text-blue-900 font-bold hover:text-red-600 underline underline-offset-4">Register</Link>
+              New personnel? <Link href={nextUrl ? `/register?next=${encodeURIComponent(nextUrl)}` : "/register"} className="text-blue-900 font-bold hover:text-red-600 underline underline-offset-4">Register</Link>
             </p>
             
             <div className="flex gap-6">
@@ -289,4 +294,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

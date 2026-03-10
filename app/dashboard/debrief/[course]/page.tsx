@@ -9,17 +9,36 @@ import { supabase } from "@/lib/supabase"
 import { AnimatePresence } from "framer-motion"
 import PPLGradingForm from "./components/PPLGradingForm"
 import CPLGradingForm from "./components/CPLGradingForm"
+import StudentPPLDebriefReview from "./components/StudentPPLDebriefReview"
 
 interface SessionItem {
   id: string
   aircraftType: string
   aircraftRegistry: string
+  lessonNo: string
+  debriefCompleted: boolean
   opDate: string
   slotSpan: number
   timeLabel: string
   flightType: string
   studentId: string
   instructorId: string
+}
+
+interface StudentDebriefRecord {
+  id: string
+  lesson_no: string
+  op_date: string
+  rpc: string
+  duration: string
+  time_label: string | null
+  flight_type: string | null
+  student_name_snapshot: string | null
+  instructor_name_snapshot: string | null
+  instructor_signature_path: string
+  student_signature_path: string | null
+  student_signed_at: string | null
+  notify: boolean | null
 }
 
 const courseMeta: Record<string, { code: string; name: string }> = {
@@ -37,13 +56,59 @@ function slotToHour(slot: number) {
 export default function PPLDebriefPage() {
   const params = useParams<{ course?: string }>()
   const [sessions, setSessions] = useState<SessionItem[]>([])
+  const [studentDebriefs, setStudentDebriefs] = useState<StudentDebriefRecord[]>([])
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [selectedSession, setSelectedSession] = useState<SessionItem | null>(null)
+  const [selectedDebrief, setSelectedDebrief] = useState<StudentDebriefRecord | null>(null)
+  const [isStudentReviewOpen, setIsStudentReviewOpen] = useState(false)
   const { pilotData, loading } = usePilotData()
   const searchParams = useSearchParams()
   const assignmentId = searchParams.get("assignment_id")
+  const debriefId = searchParams.get("debrief_id")
   const selectedCourse = String(params?.course || "ppl").toLowerCase()
   const selectedMeta = courseMeta[selectedCourse] || { code: selectedCourse.toUpperCase(), name: "Debriefing Course" }
+
+  useEffect(() => {
+    if (!pilotData || pilotData.role !== "student") return
+    if (selectedCourse !== "ppl") return
+
+    const loadStudentDebriefs = async () => {
+      const studentId = String(pilotData.student_id || "").trim()
+      if (!studentId) {
+        setStudentDebriefs([])
+        return
+      }
+      const studentCandidates = [...new Set([studentId, studentId.toLowerCase(), studentId.toUpperCase()])]
+      const { data, error } = await supabase
+        .from("ppl_debriefs")
+        .select("id, lesson_no, op_date, rpc, duration, time_label, flight_type, student_name_snapshot, instructor_name_snapshot, instructor_signature_path, student_signature_path, student_signed_at, notify")
+        .in("student_id", studentCandidates)
+        .order("op_date", { ascending: false })
+        .order("created_at", { ascending: false })
+
+      if (error || !data) {
+        setStudentDebriefs([])
+        return
+      }
+
+      setStudentDebriefs(
+        (data as StudentDebriefRecord[]).filter((row) => String(row.instructor_signature_path || "").trim())
+      )
+      if (debriefId) {
+        const matched = (data as StudentDebriefRecord[]).find((row) => String(row.id) === debriefId)
+        if (matched) {
+          if (!matched.notify) {
+            await supabase.from("ppl_debriefs").update({ notify: true }).eq("id", matched.id)
+            matched.notify = true
+          }
+          setSelectedDebrief(matched)
+          setIsStudentReviewOpen(true)
+        }
+      }
+    }
+
+    loadStudentDebriefs()
+  }, [pilotData, selectedCourse, debriefId])
 
   useEffect(() => {
     const loadSessions = async () => {
@@ -51,6 +116,7 @@ export default function PPLDebriefPage() {
         setSessions([])
         return
       }
+      if (pilotData.role === "student") return
 
       const today = new Date()
       const todayDate = `${today.getFullYear()}-${`${today.getMonth() + 1}`.padStart(2, "0")}-${`${today.getDate()}`.padStart(2, "0")}`
@@ -63,37 +129,67 @@ export default function PPLDebriefPage() {
       }
 
       const idCandidates = [...new Set([idValue, idValue.toUpperCase(), idValue.toLowerCase()])]
-      const { data, error } = await supabase
+      const assignmentBaseQuery = supabase
         .from("flight_ops_assignments")
-        .select("id, aircraft_type, aircraft_registry, slot_index, slot_span, flight_type, student_id, instructor_id")
-        .eq("op_date", todayDate)
+        .select("id, aircraft_type, aircraft_registry, lesson_no, slot_index, slot_span, flight_type, student_id, instructor_id, op_date")
         .in(idColumn, idCandidates)
-        .order("slot_index", { ascending: true })
+
+      const { data, error } = assignmentId
+        ? await assignmentBaseQuery.eq("id", assignmentId).limit(1)
+        : await assignmentBaseQuery.eq("op_date", todayDate).order("slot_index", { ascending: true })
 
       if (error || !data) {
         setSessions([])
         return
       }
 
+      const assignmentIds = [...new Set((data || []).map((row) => String(row.id || "").trim()).filter(Boolean))]
+      const studentIds = [...new Set((data || []).map((row) => String(row.student_id || "").trim()).filter(Boolean))]
+      const studentCandidates = [...new Set(studentIds.flatMap((value) => [value, value.toLowerCase(), value.toUpperCase()]))]
+      const completedAssignmentIds = new Set<string>()
+
+      if (assignmentIds.length > 0 || studentCandidates.length > 0) {
+        const debriefQuery = supabase
+          .from("ppl_debriefs")
+          .select("assignment_id, student_id, op_date")
+          .order("created_at", { ascending: false })
+          .limit(500)
+
+        const { data: debriefRows } = assignmentIds.length > 0
+          ? await debriefQuery.in("assignment_id", assignmentIds)
+          : await debriefQuery.in("student_id", studentCandidates)
+
+        ;(debriefRows || []).forEach((row) => {
+          const assignment = String(row.assignment_id || "").trim()
+          if (assignment) completedAssignmentIds.add(assignment)
+        })
+      }
+
       const nextSessions: SessionItem[] = data.map((row) => {
         const start = Number(row.slot_index) || 0
         const span = Number(row.slot_span) || 1
         const end = start + span
+        const assignmentId = String(row.id)
+        const studentId = String(row.student_id || "")
+        const opDate = String(row.op_date || todayDate)
         return {
-          id: String(row.id),
+          id: assignmentId,
           aircraftType: String(row.aircraft_type || ""),
           aircraftRegistry: String(row.aircraft_registry || ""),
-          opDate: todayDate,
+          lessonNo: String(row.lesson_no || ""),
+          debriefCompleted: completedAssignmentIds.has(assignmentId),
+          opDate,
           slotSpan: span,
           timeLabel: `${slotToHour(start)} - ${slotToHour(end)}`,
           flightType: String(row.flight_type || "TBD"),
-          studentId: String(row.student_id || ""),
+          studentId,
           instructorId: String(row.instructor_id || ""),
         }
       })
-      setSessions(nextSessions)
+      const pendingSessions = nextSessions.filter((item) => !item.debriefCompleted)
+      setSessions(pendingSessions)
       if (assignmentId) {
-        const matched = nextSessions.find((item) => item.id === assignmentId)
+        const matched = pendingSessions.find((item) => item.id === assignmentId)
         if (matched) {
           setSelectedSession(matched)
           setIsFormOpen(true)
@@ -127,7 +223,55 @@ export default function PPLDebriefPage() {
         </div>
       </div>
 
-      {sessions.length === 0 ? (
+      {pilotData.role === "student" && selectedCourse === "ppl" ? (
+        studentDebriefs.length === 0 ? (
+          <div className="border-2 border-dashed border-slate-200 rounded-[2rem] h-64 flex flex-col items-center justify-center bg-white/50">
+            <div className="bg-slate-100 p-4 rounded-full mb-4">
+              <Plus className="text-slate-300" size={32} />
+            </div>
+            <p className="text-slate-400 text-sm font-medium italic">
+              No debrief records available yet.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {studentDebriefs.map((record) => (
+              <button
+                key={record.id}
+                type="button"
+                onClick={async () => {
+                  if (!record.notify) {
+                    await supabase.from("ppl_debriefs").update({ notify: true }).eq("id", record.id)
+                    setStudentDebriefs((prev) =>
+                      prev.map((item) => (item.id === record.id ? { ...item, notify: true } : item))
+                    )
+                  }
+                  setSelectedDebrief(record)
+                  setIsStudentReviewOpen(true)
+                }}
+                className="w-full text-left bg-white border border-slate-200 rounded-2xl p-4 hover:border-blue-900 hover:bg-blue-50/30 transition-all"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">PPL Debrief Record</p>
+                  {!record.notify ? (
+                    <span className="inline-flex items-center rounded-full bg-red-100 text-red-700 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider">
+                      New
+                    </span>
+                  ) : null}
+                </div>
+                <p className="text-sm font-bold text-slate-900 mt-1">
+                  Lesson {record.lesson_no || "N/A"} - {record.rpc}
+                </p>
+                <p className="text-xs text-slate-600 mt-1">
+                  {new Date(`${record.op_date}T00:00:00`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                  {" - "}
+                  {record.instructor_name_snapshot || "Instructor"}
+                </p>
+              </button>
+            ))}
+          </div>
+        )
+      ) : sessions.length === 0 ? (
         <div className="border-2 border-dashed border-slate-200 rounded-[2rem] h-64 flex flex-col items-center justify-center bg-white/50">
           <div className="bg-slate-100 p-4 rounded-full mb-4">
             <Plus className="text-slate-300" size={32} />
@@ -165,6 +309,8 @@ export default function PPLDebriefPage() {
               instructorName={pilotData?.full_name || pilotData?.instructor_id || pilotData?.email || "Instructor"}
               role={pilotData?.role || "student"}
               initialSession={{
+                assignmentId: selectedSession.id,
+                lessonNo: selectedSession.lessonNo,
                 date: selectedSession.opDate,
                 rpc: selectedSession.aircraftRegistry,
                 duration: `${selectedSession.slotSpan} Hour${selectedSession.slotSpan > 1 ? "s" : ""}`,
@@ -181,6 +327,8 @@ export default function PPLDebriefPage() {
               instructorName={pilotData?.full_name || pilotData?.instructor_id || pilotData?.email || "Instructor"}
               role={pilotData?.role || "student"}
               initialSession={{
+                assignmentId: selectedSession.id,
+                lessonNo: selectedSession.lessonNo,
                 date: selectedSession.opDate,
                 rpc: selectedSession.aircraftRegistry,
                 duration: `${selectedSession.slotSpan} Hour${selectedSession.slotSpan > 1 ? "s" : ""}`,
@@ -193,6 +341,26 @@ export default function PPLDebriefPage() {
           )
         )}
       </AnimatePresence>
+
+      <StudentPPLDebriefReview
+        open={isStudentReviewOpen}
+        onClose={() => setIsStudentReviewOpen(false)}
+        record={selectedDebrief}
+        onSigned={({ id, studentSignaturePath, studentSignedAt }) => {
+          setStudentDebriefs((prev) =>
+            prev.map((item) =>
+              item.id === id
+                ? { ...item, student_signature_path: studentSignaturePath, student_signed_at: studentSignedAt, notify: true }
+                : item
+            )
+          )
+          setSelectedDebrief((prev) =>
+            prev && prev.id === id
+              ? { ...prev, student_signature_path: studentSignaturePath, student_signed_at: studentSignedAt, notify: true }
+              : prev
+          )
+        }}
+      />
     </div>
   )
 }

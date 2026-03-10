@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { User, Lock, Mail, Loader2, Plane, Eye, EyeOff, ArrowLeft, ShieldCheck, AlertCircle } from "lucide-react";
 import DataPrivacyGate from "@/components/data-privacy-gate";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 // --- MINIMALIST REUSABLE INPUT ---
 const FormInput = ({ label, icon: Icon, ...props }: any) => (
@@ -25,6 +26,8 @@ const FormInput = ({ label, icon: Icon, ...props }: any) => (
 );
 
 export default function RegisterPage() {
+  const searchParams = useSearchParams()
+  const nextUrl = searchParams.get("next")
   const [loading, setLoading] = useState(false);
   const [showAdvisory, setShowAdvisory] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -54,13 +57,12 @@ export default function RegisterPage() {
 
   const validatePersonnelId = async (role: "student" | "instructor", personnelIdRaw: string) => {
     const { validationTable, validationColumn, label } = getValidationSpec(role)
-    // console.log(validationTable)
-    const candidates = [...new Set([personnelIdRaw, personnelIdRaw.toUpperCase(), personnelIdRaw.toLowerCase()])]
-    // console.log(candidates)
+    const normalizedPersonnelId = personnelIdRaw.trim().toLowerCase()
+
     const { data: approvedRows, error: approvedError } = await supabase
       .from(validationTable)
       .select(validationColumn)
-      .in(validationColumn, candidates)
+      .ilike(validationColumn, normalizedPersonnelId)
       .limit(1)
     // console.log(data)
     if (approvedError) throw approvedError
@@ -71,7 +73,7 @@ export default function RegisterPage() {
     const { data: claimedRows, error: claimedError } = await supabase
       .from("profiles")
       .select("id")
-      .in(validationColumn, candidates)
+      .ilike(validationColumn, normalizedPersonnelId)
       .limit(1)
     console.log(claimedRows)
     if (claimedError) throw claimedError
@@ -114,7 +116,7 @@ export default function RegisterPage() {
     try {
       const email = formData.email.trim().toLowerCase();
       const personnelIdRaw = formData.personnelId.trim();
-      const personnelId = personnelIdRaw.toUpperCase();
+      const personnelId = personnelIdRaw.toLowerCase();
 
       // Must be pre-approved + unclaimed before creating auth user.
       await validatePersonnelId(formData.role, personnelIdRaw)
@@ -138,7 +140,10 @@ export default function RegisterPage() {
           }]);
         if (profileError) throw profileError;
       }
-      window.location.href = '/login?registered=true';
+      const loginUrl = nextUrl
+        ? `/login?registered=true&next=${encodeURIComponent(nextUrl)}`
+        : "/login?registered=true"
+      window.location.href = loginUrl;
     } catch (err: any) {
       const message = err?.message || "Registration failed."
       const code = err?.code ? ` [code: ${err.code}]` : ""
@@ -170,7 +175,7 @@ export default function RegisterPage() {
         <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-red-600/10 rounded-full blur-3xl" />
         
         <div className="relative z-10 space-y-8">
-          <Link href="/login" className="inline-flex items-center gap-2 text-white/60 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors mb-4">
+          <Link href={nextUrl ? `/login?next=${encodeURIComponent(nextUrl)}` : "/login"} className="inline-flex items-center gap-2 text-white/60 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors mb-4">
             <ArrowLeft size={14} /> Back to Login
           </Link>
           
@@ -247,7 +252,7 @@ export default function RegisterPage() {
                 label={formData.role === "instructor" ? "Instructor ID" : "Student ID"}
                 icon={User}
                 type="text"
-                placeholder={formData.role === "instructor" ? "INST-001" : "STD-001"}
+                placeholder={formData.role === "instructor" ? "Instructor Last Name" : "Student Last Name"}
                 required
                 onChange={handleInputChange}
               />
@@ -289,7 +294,7 @@ export default function RegisterPage() {
                <ShieldCheck size={14} className="text-green-600" /> RA 10173 Secured Data Environment
              </div>
              <p className="text-sm text-slate-500">
-               Already have access? <Link href="/login" className="text-blue-900 font-bold hover:underline underline-offset-4">Log in here</Link>
+               Already have access? <Link href={nextUrl ? `/login?next=${encodeURIComponent(nextUrl)}` : "/login"} className="text-blue-900 font-bold hover:underline underline-offset-4">Log in here</Link>
              </p>
           </div>
         </motion.div>

@@ -30,6 +30,10 @@ interface StudentProfileRow {
   email: string | null
 }
 
+interface PplDebriefRow {
+  assignment_id: string | null
+}
+
 interface FlightDayGroup {
   date: string
   label: string
@@ -129,8 +133,10 @@ export default function InstructorDirectoryPage() {
       const rows = (data as AssignmentRow[]).filter((row) => String(row.op_date || "").trim())
       const studentIds = [...new Set(rows.map((row) => String(row.student_id || "").trim()).filter(Boolean))]
       const studentCandidates = [...new Set(studentIds.flatMap((id) => [id, id.toUpperCase(), id.toLowerCase()]))]
+      const assignmentIds = [...new Set(rows.map((row) => String(row.id || "").trim()).filter(Boolean))]
       const nameMap: Record<string, string> = {}
       const emailMap: Record<string, string> = {}
+      const completedAssignmentIds = new Set<string>()
 
       if (studentCandidates.length > 0) {
         const { data: studentRows } = await supabase
@@ -157,6 +163,23 @@ export default function InstructorDirectoryPage() {
       }
       setStudentEmails(emailMap)
 
+      if (assignmentIds.length > 0 || studentCandidates.length > 0) {
+        const debriefQuery = supabase
+          .from("ppl_debriefs")
+          .select("assignment_id, student_id, op_date")
+          .order("created_at", { ascending: false })
+          .limit(500)
+
+        const { data: debriefRows } = assignmentIds.length > 0
+          ? await debriefQuery.in("assignment_id", assignmentIds)
+          : await debriefQuery.in("student_id", studentCandidates)
+
+        ;(debriefRows as PplDebriefRow[] | null)?.forEach((row) => {
+          const assignmentId = String(row.assignment_id || "").trim()
+          if (assignmentId) completedAssignmentIds.add(assignmentId)
+        })
+      }
+
       const { data: evalRows } = await supabase
         .from("student_instructor_feedback")
         .select("id")
@@ -164,21 +187,21 @@ export default function InstructorDirectoryPage() {
         .is("notify", null)
       setEvaluationNotifyCount((evalRows || []).length)
 
-      const grouped: Record<string, Record<string, FlightDayGroup["students"][number]>> = {}
+      const grouped: Record<string, FlightDayGroup["students"]> = {}
       rows.forEach((row) => {
         const date = String(row.op_date)
         const studentIdRaw = String(row.student_id || "").trim()
         if (!date || !studentIdRaw) return
-        if (!grouped[date]) grouped[date] = {}
+        if (!grouped[date]) grouped[date] = []
         const displayName = nameMap[studentIdRaw.toLowerCase()] || studentIdRaw
         const start = Number(row.slot_index) || 0
         const span = Number(row.slot_span) || 1
         const end = start + span
         const lessonNo = String(row.lesson_no || "").trim()
-        const key = studentIdRaw.toLowerCase()
-        const existing = grouped[date][key]
+        const assignmentId = String(row.id || "")
+        const isDebriefCompleted = completedAssignmentIds.has(assignmentId)
         const nextValue = {
-          assignmentId: String(row.id || ""),
+          assignmentId,
           studentId: studentIdRaw,
           studentName: displayName,
           timeLabel: `${slotToHour(start)} - ${slotToHour(end)}`,
@@ -186,16 +209,17 @@ export default function InstructorDirectoryPage() {
           aircraftRegistry: String(row.aircraft_registry || "N/A"),
           lessonNo,
           notified: Boolean(row.notify),
-          debriefCompleted: Boolean(row.notification_read_instructor),
+          debriefCompleted: isDebriefCompleted,
           readyForDebrief: Boolean(lessonNo),
         }
-        if (!existing || (!existing.readyForDebrief && nextValue.readyForDebrief)) grouped[date][key] = nextValue
+        const exists = grouped[date].some((item) => item.assignmentId === assignmentId)
+        if (!exists) grouped[date].push(nextValue)
       })
 
       const nextGroups: FlightDayGroup[] = Object.entries(grouped).map(([date, students]) => ({
         date,
         label: formatDateLabel(date, todayIso),
-        students: Object.values(students),
+        students: [...students].sort((left, right) => left.timeLabel.localeCompare(right.timeLabel)),
       }))
       nextGroups.sort((a, b) => (a.date < b.date ? 1 : -1))
       setGroups(nextGroups)
@@ -233,10 +257,6 @@ export default function InstructorDirectoryPage() {
   const handleOpenDebrief = async (assignmentId: string) => {
     if (!pilotData?.instructor_id || !assignmentId || openingDebriefId) return
     setOpeningDebriefId(assignmentId)
-    const rawId = String(pilotData.instructor_id).trim()
-    const idCandidates = [...new Set([rawId, rawId.toUpperCase(), rawId.toLowerCase()])]
-    await supabase.from("flight_ops_assignments").update({ notification_read_instructor: true }).eq("id", assignmentId).in("instructor_id", idCandidates)
-    setGroups((prev) => prev.map((group) => ({ ...group, students: group.students.map((student) => (student.assignmentId === assignmentId ? { ...student, debriefCompleted: true } : student)) })))
     setSelectedAssignmentId(assignmentId)
     setShowDebriefModal(true)
     setOpeningDebriefId(null)
@@ -441,9 +461,18 @@ export default function InstructorDirectoryPage() {
                           ) : null}
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          <button type="button" onClick={() => handleOpenDebrief(student.assignmentId)} disabled={!student.readyForDebrief || openingDebriefId === student.assignmentId} className="inline-flex items-center gap-1 rounded-lg bg-blue-900 hover:bg-blue-800 text-white px-3 py-1.5 text-[10px] font-black uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDebrief(student.assignmentId)}
+                            disabled={student.debriefCompleted || !student.readyForDebrief || openingDebriefId === student.assignmentId}
+                            className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-[10px] font-black uppercase tracking-wider disabled:cursor-not-allowed ${
+                              student.debriefCompleted
+                                ? "bg-emerald-600 text-white disabled:opacity-100"
+                                : "bg-blue-900 hover:bg-blue-800 text-white disabled:opacity-40"
+                            }`}
+                          >
                             {openingDebriefId === student.assignmentId ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
-                            Debrief
+                            {student.debriefCompleted ? "Debrief Done" : "Debrief"}
                           </button>
                           <button type="button" onClick={() => handleNotifyStudent(student)} disabled={student.readyForDebrief || student.notified || Boolean(notifyingAssignmentId)} className="inline-flex items-center gap-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 text-[10px] font-black uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed">
                             {notifyingAssignmentId === student.assignmentId ? <Loader2 size={12} className="animate-spin" /> : <BellRing size={12} />}
