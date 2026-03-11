@@ -16,6 +16,13 @@ interface SelfAssessmentRow {
   notes: string | null
 }
 
+const gradeOptions = [
+  { label: "S+", value: 4 },
+  { label: "S", value: 3 },
+  { label: "S-", value: 2 },
+  { label: "NP", value: 1 },
+] as const
+
 function getMonthRange(monthValue: string) {
   const [year, month] = monthValue.split("-").map(Number)
   const start = `${year}-${String(month).padStart(2, "0")}-01`
@@ -26,12 +33,49 @@ function getMonthRange(monthValue: string) {
 
 function clampScore(value: number) {
   if (Number.isNaN(value)) return 1
-  return Math.max(1, Math.min(5, value))
+  return Math.max(1, Math.min(4, value))
 }
 
 function formatShortDate(dateValue: string) {
   const parsed = new Date(`${dateValue}T00:00:00`)
   return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+}
+
+function valueToGrade(value: number) {
+  const safe = clampScore(value)
+  return gradeOptions.find((option) => option.value === safe)?.label || "NP"
+}
+
+function GradeRadioGroup({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: number
+  onChange: (next: number) => void
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
+      <p className="text-[11px] font-black uppercase tracking-wider text-slate-600 mb-2">{label}</p>
+      <div className="flex gap-1">
+        {gradeOptions.map((option) => (
+          <button
+            key={`${label}-${option.value}`}
+            type="button"
+            onClick={() => onChange(option.value)}
+            className={`w-12 h-9 rounded-lg text-[10px] font-black border-2 transition-all ${
+              value === option.value
+                ? "bg-blue-900 border-blue-900 text-white"
+                : "bg-white border-slate-200 text-slate-500 hover:border-blue-900"
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 export default function PerformancePage() {
@@ -189,7 +233,7 @@ export default function PerformancePage() {
           <div className="px-6 py-6 md:px-8 md:py-8 bg-gradient-to-r from-blue-950 via-blue-900 to-blue-800">
             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-100">Student Self Assessment</p>
             <h1 className="mt-2 text-3xl md:text-4xl font-black tracking-tight text-white">My Performance</h1>
-            <p className="mt-1 text-xs font-semibold text-blue-100/80">Rate yourself from 1 to 5 and track monthly progress</p>
+            <p className="mt-1 text-xs font-semibold text-blue-100/80">Grading scale (S+, S, S-, NP) and track monthly progress</p>
           </div>
 
           <div className="p-6 grid gap-4 md:grid-cols-3">
@@ -199,7 +243,7 @@ export default function PerformancePage() {
             </div>
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><BarChart3 size={12} /> Monthly Average</p>
-              <p className="mt-2 text-2xl font-black text-slate-900">{summary.avg.toFixed(1)} / 15</p>
+              <p className="mt-2 text-2xl font-black text-slate-900">{summary.avg.toFixed(1)} / 12</p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><TrendingUp size={12} /> Improvement</p>
@@ -210,28 +254,31 @@ export default function PerformancePage() {
           <div className="px-6 pb-6">
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Monthly Progress Graph</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="h-72 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:items-stretch">
+                <div className="h-full min-h-72 rounded-xl border border-slate-200 bg-slate-50 p-4">
                   {loadingAssessments ? (
                     <p className="text-sm text-slate-500">Loading graph...</p>
                   ) : assessments.length === 0 ? (
                     <p className="text-sm text-slate-500">No assessment data for this month yet.</p>
                   ) : (
                     <div className="h-full overflow-x-auto">
-                      <div className="h-full flex items-end gap-3" style={{ minWidth: `${Math.max(assessments.length * 72, 320)}px` }}>
+                      <div className="h-full flex items-end gap-5" style={{ minWidth: `${Math.max(assessments.length * 132, 420)}px` }}>
                         {assessments.map((item) => {
-                          const max = 15
-                          const l = (item.landings / max) * 100
-                          const t = (item.takeoff / max) * 100
-                          const tr = (item.turns / max) * 100
+                          const chartHeightPx = 450
+                          const lHeightPx = Math.max(Math.round((item.landings / 12) * chartHeightPx), item.landings > 0 ? 2 : 0)
+                          const tHeightPx = Math.max(Math.round((item.takeoff / 12) * chartHeightPx), item.takeoff > 0 ? 2 : 0)
+                          const trHeightPx = Math.max(Math.round((item.turns / 12) * chartHeightPx), item.turns > 0 ? 2 : 0)
                           return (
-                            <div key={item.id} className="w-14 shrink-0 flex flex-col items-center gap-2">
-                              <div className="w-full h-52 rounded-md overflow-hidden border border-slate-200 bg-white flex flex-col-reverse">
-                                <div style={{ height: `${l}%` }} className="bg-cyan-400/80" />
-                                <div style={{ height: `${t}%` }} className="bg-sky-500/80" />
-                                <div style={{ height: `${tr}%` }} className="bg-blue-700/80" />
+                            <div key={item.id} className="w-16 shrink-0 flex flex-col items-center gap-2">
+                              <div className="w-full h-[450px] rounded-lg border border-slate-200 bg-white overflow-hidden shadow-sm flex flex-col-reverse">
+                                <div style={{ height: `${lHeightPx}px` }} className="w-full bg-cyan-400/90" />
+                                <div style={{ height: `${tHeightPx}px` }} className="w-full bg-sky-500/90" />
+                                <div style={{ height: `${trHeightPx}px` }} className="w-full bg-blue-700/90" />
                               </div>
                               <p className="text-[10px] font-bold text-slate-600">{formatShortDate(item.assess_date)}</p>
+                              <p className="text-[9px] text-slate-500 text-center leading-tight">
+                                {valueToGrade(item.landings)}/{valueToGrade(item.takeoff)}/{valueToGrade(item.turns)}
+                              </p>
                             </div>
                           )
                         })}
@@ -243,19 +290,11 @@ export default function PerformancePage() {
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Add / Update Daily Self-Assessment</p>
                   <input type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} className="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm font-bold" />
                   <div className="grid grid-cols-1 gap-2">
-                    <div className="grid grid-cols-[1fr_90px] items-center gap-2">
-                      <label className="text-[11px] font-black text-slate-600">Landings Score (1-5)</label>
-                      <input type="number" min={1} max={5} value={landings} onChange={(e) => setLandings(Number(e.target.value))} className="h-10 rounded-lg border border-slate-300 px-2 text-sm font-bold" />
-                    </div>
-                    <div className="grid grid-cols-[1fr_90px] items-center gap-2">
-                      <label className="text-[11px] font-black text-slate-600">Takeoff Score (1-5)</label>
-                      <input type="number" min={1} max={5} value={takeoff} onChange={(e) => setTakeoff(Number(e.target.value))} className="h-10 rounded-lg border border-slate-300 px-2 text-sm font-bold" />
-                    </div>
-                    <div className="grid grid-cols-[1fr_90px] items-center gap-2">
-                      <label className="text-[11px] font-black text-slate-600">Turns Score (1-5)</label>
-                      <input type="number" min={1} max={5} value={turns} onChange={(e) => setTurns(Number(e.target.value))} className="h-10 rounded-lg border border-slate-300 px-2 text-sm font-bold" />
-                    </div>
+                    <GradeRadioGroup label="Landings Grade" value={landings} onChange={setLandings} />
+                    <GradeRadioGroup label="Takeoff Grade" value={takeoff} onChange={setTakeoff} />
+                    <GradeRadioGroup label="Turns Grade" value={turns} onChange={setTurns} />
                   </div>
+                  <p className="text-[11px] font-semibold text-slate-500">Scale: S+ = 4, S = 3, S- = 2, NP = 1</p>
                   <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Notes (optional)" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
                   <button onClick={handleSave} className="h-10 px-4 rounded-lg bg-blue-900 text-white text-xs font-black uppercase tracking-widest hover:bg-blue-800 transition-colors">
                     Save Self-Assessment

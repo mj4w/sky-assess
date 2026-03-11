@@ -42,7 +42,7 @@ const NavButton = ({ href, title, icon, description, onClick, badgeCount = 0 }: 
 
   if (onClick) {
     return (
-      <button onClick={onClick} className="group bg-white border border-slate-200 p-6 flex flex-col items-start justify-between gap-4 rounded-2xl hover:border-blue-900 transition-all hover:shadow-xl hover:shadow-blue-900/10 relative overflow-hidden text-left w-full">
+      <button onClick={onClick} className="group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-6 flex flex-col items-start justify-between gap-4 rounded-2xl hover:border-blue-900 transition-all hover:shadow-xl hover:shadow-blue-900/10 relative overflow-hidden text-left w-full">
         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-900 to-sky-500 opacity-0 group-hover:opacity-100 transition-opacity" />
         {content}
       </button>
@@ -50,7 +50,7 @@ const NavButton = ({ href, title, icon, description, onClick, badgeCount = 0 }: 
   }
 
   return (
-    <Link href={href} className="group bg-white border border-slate-200 p-6 flex flex-col items-start justify-between gap-4 rounded-2xl hover:border-blue-900 transition-all hover:shadow-xl hover:shadow-blue-900/10 relative overflow-hidden">
+    <Link href={href} className="group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-6 flex flex-col items-start justify-between gap-4 rounded-2xl hover:border-blue-900 transition-all hover:shadow-xl hover:shadow-blue-900/10 relative overflow-hidden">
       <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-900 to-sky-500 opacity-0 group-hover:opacity-100 transition-opacity" />
       {content}
     </Link>
@@ -192,14 +192,14 @@ export default function DashboardPage() {
   }, [pilotData])
 
   if (loading) return (
-    <div className="h-screen w-full flex flex-col items-center justify-center bg-white">
+    <div className="h-screen w-full flex flex-col items-center justify-center bg-white dark:bg-slate-950">
       <Plane className="h-8 w-8 text-blue-900 animate-pulse mb-4" />
       <p className="font-bold uppercase text-[10px] tracking-[0.4em] text-slate-400">Initializing Terminal</p>
     </div>
   )
 
   if (error) return (
-    <div className="h-screen flex flex-col items-center justify-center bg-white p-6 text-center">
+    <div className="h-screen flex flex-col items-center justify-center bg-white dark:bg-slate-950 p-6 text-center">
       <ShieldAlert className="h-10 w-10 text-red-600 mb-4 opacity-20" />
       <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500">{error}</h2>
     </div>
@@ -207,7 +207,7 @@ export default function DashboardPage() {
 
   if (isAdmin) {
     return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-white">
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-white dark:bg-slate-950">
         <Plane className="h-8 w-8 text-blue-900 animate-pulse mb-4" />
         <p className="font-bold uppercase text-[10px] tracking-[0.4em] text-slate-400">Redirecting...</p>
       </div>
@@ -216,7 +216,7 @@ export default function DashboardPage() {
 
   if (!pilotData) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center bg-white p-6 text-center">
+      <div className="h-screen flex flex-col items-center justify-center bg-white dark:bg-slate-950 p-6 text-center">
         <ShieldAlert className="h-10 w-10 text-red-600 mb-4 opacity-20" />
         <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500">Unable to load dashboard profile.</h2>
       </div>
@@ -226,17 +226,17 @@ export default function DashboardPage() {
   if (isInstructor) return <InstructorDirectoryPage />
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-100 via-slate-50 to-white font-sans">
+    <div className="min-h-screen bg-gradient-to-b from-slate-100 via-slate-50 to-white dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 font-sans">
       <div className="max-w-7xl mx-auto p-6 lg:p-12 space-y-8">
-        <div className="rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60 overflow-hidden">
-          <div className="px-6 py-6 md:px-8 md:py-8 bg-white border-b border-slate-200">
+        <div className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl shadow-slate-200/60 dark:shadow-slate-950/50 overflow-hidden">
+          <div className="px-6 py-6 md:px-8 md:py-8 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
             <Header pilotData={pilotData} role={pilotData.role} id={pilotData.id} />
           </div>
           <div className="px-6 py-4 md:px-8 bg-gradient-to-r from-blue-950 via-blue-900 to-blue-800">
             <p className="text-xs font-semibold text-blue-100/80 uppercase tracking-widest">Flight Operations Terminal</p>
           </div>
 
-          <div className="p-6 md:p-8 space-y-8 bg-slate-50/60">
+          <div className="p-6 md:p-8 space-y-8 bg-slate-50/60 dark:bg-slate-900/80">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <StatCard title="Next Session" value={nextSessionLabel} sub={nextSessionSub} variant="white" />
             </div>

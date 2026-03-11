@@ -849,7 +849,7 @@ export default function DispatchCalendar() {
 
             <form onSubmit={submitCreateBooking} className="p-5 space-y-4">
               <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Student ID</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Student Name</label>
                 <select
                   value={selectedStudentId}
                   onChange={(e) => setSelectedStudentId(e.target.value)}
@@ -859,14 +859,14 @@ export default function DispatchCalendar() {
                   <option value="" disabled>Select student</option>
                   {studentOptions.map((student) => (
                     <option key={student.id} value={student.id}>
-                      {student.id}{student.fullName ? ` - ${student.fullName}` : ""}
+                     {student.fullName}
                     </option>
                   ))}
                 </select>
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Instructor ID</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Instructor Name</label>
                 <select
                   value={selectedInstructorId}
                   onChange={(e) => setSelectedInstructorId(e.target.value)}
@@ -876,7 +876,7 @@ export default function DispatchCalendar() {
                   <option value="" disabled>Select instructor</option>
                   {instructorOptions.map((instructor) => (
                     <option key={instructor.id} value={instructor.id}>
-                      {instructor.id}{instructor.fullName ? ` - ${instructor.fullName}` : ""}
+                      {instructor.fullName}
                     </option>
                   ))}
                 </select>

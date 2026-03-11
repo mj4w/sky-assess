@@ -83,6 +83,10 @@ export default function InstructorDirectoryPage() {
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>("")
   const [noticeMessage, setNoticeMessage] = useState<string>("")
   const [evaluationNotifyCount, setEvaluationNotifyCount] = useState(0)
+  const [schedulePageByDate, setSchedulePageByDate] = useState<Record<string, number>>({})
+  const [datePage, setDatePage] = useState(1)
+  const schedulePageSize = 3
+  const datePageSize = 3
 
   const instructorDisplayName = useMemo(() => {
     const name = String(pilotData?.full_name || "").trim()
@@ -223,16 +227,25 @@ export default function InstructorDirectoryPage() {
       }))
       nextGroups.sort((a, b) => (a.date < b.date ? 1 : -1))
       setGroups(nextGroups)
+      setDatePage(1)
+      setSchedulePageByDate(() =>
+        nextGroups.reduce<Record<string, number>>((acc, group) => {
+          acc[group.date] = 1
+          return acc
+        }, {})
+      )
     }
 
     loadDirectory()
   }, [pilotData])
 
-  if (loading || !pilotData) return <div className="p-8 text-sm text-slate-500">Loading...</div>
-  if (pilotData.role !== "instructor") return <div className="p-8 text-sm text-slate-500">Redirecting...</div>
+  if (loading || !pilotData) return <div className="p-8 text-sm text-slate-500 dark:text-slate-400">Loading...</div>
+  if (pilotData.role !== "instructor") return <div className="p-8 text-sm text-slate-500 dark:text-slate-400">Redirecting...</div>
 
   const totalStudents = groups.reduce((count, group) => count + group.students.length, 0)
   const pendingNotifyCount = groups.reduce((count, group) => count + group.students.filter((student) => !student.readyForDebrief && !student.notified).length, 0)
+  const totalDatePages = Math.max(1, Math.ceil(groups.length / datePageSize))
+  const paginatedGroups = groups.slice((datePage - 1) * datePageSize, datePage * datePageSize)
 
   const handleOpenEvaluation = async () => {
     if (!pilotData?.instructor_id) {
@@ -335,10 +348,10 @@ export default function InstructorDirectoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-slate-100 via-slate-50 to-white p-6 lg:p-10">
+    <div className="min-h-screen bg-linear-to-b from-slate-100 via-slate-50 to-white dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 p-6 lg:p-10">
       <div className="max-w-6xl mx-auto space-y-6">
-        <div className="rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60 overflow-hidden">
-          <div className="px-6 py-6 md:px-8 md:py-8 border-b border-slate-100 bg-linear-to-r from-blue-950 via-blue-900 to-blue-800">
+        <div className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl shadow-slate-200/60 dark:shadow-slate-950/50 overflow-hidden">
+          <div className="px-6 py-6 md:px-8 md:py-8 border-b border-slate-100 dark:border-slate-700 bg-linear-to-r from-blue-950 via-blue-900 to-blue-800">
             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-100/90">Flight Instructor Dashboard</p>
             <h1 className="mt-2 text-3xl md:text-4xl font-black tracking-tight text-white">{`Instructor. ${instructorDisplayName}`}</h1>
             <p className="mt-1 text-xs font-semibold text-blue-100/80">Flight assignments, debrief status, and student action tracking</p>
@@ -372,38 +385,48 @@ export default function InstructorDirectoryPage() {
             </div>
           </div>
 
-          <div className="p-4 md:p-6 space-y-4 bg-slate-50/50">
+          <div className="p-4 md:p-6 space-y-4 bg-slate-50/50 dark:bg-slate-900/80">
             {noticeMessage ? <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs font-semibold text-blue-800">{noticeMessage}</div> : null}
             {groups.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
-                <p className="text-base font-bold text-slate-700">No flight assignments found.</p>
+              <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-6 py-10 text-center">
+                <p className="text-base font-bold text-slate-700 dark:text-slate-200">No flight assignments found.</p>
               </div>
             ) : (
-              groups.map((group) => (
+              paginatedGroups.map((group) => (
                 <section
                   key={group.date}
                   className={`rounded-2xl border overflow-hidden shadow-sm ${
                     group.date === todayIso
-                      ? "border-blue-300 bg-blue-50/30 shadow-blue-100"
-                      : "border-slate-200 bg-white"
+                      ? "border-blue-300 dark:border-blue-800 bg-blue-50/30 dark:bg-slate-900/90 shadow-blue-100 dark:shadow-slate-950/40"
+                      : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
                   }`}
                 >
                   <div
                     className={`px-5 py-4 border-b ${
                       group.date === todayIso
-                        ? "border-blue-200 bg-linear-to-r from-blue-100 to-blue-50"
-                        : "border-slate-100 bg-slate-50/90"
+                        ? "border-blue-200 dark:border-blue-800 bg-linear-to-r from-blue-100 to-blue-50 dark:from-slate-800 dark:to-slate-900"
+                        : "border-slate-100 dark:border-slate-700 bg-slate-50/90 dark:bg-slate-800/80"
                     }`}
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <h2 className="text-xl md:text-2xl font-black tracking-tight text-slate-900">{group.label}</h2>
+                      <h2
+                        className={`text-xl md:text-2xl font-black tracking-tight ${
+                          group.date === todayIso ? "text-slate-900 dark:text-blue-100" : "text-slate-900 dark:text-slate-100"
+                        }`}
+                      >
+                        {group.label}
+                      </h2>
                       {group.date === todayIso ? (
                         <span className="inline-flex items-center rounded-full bg-blue-900 text-white px-3 py-1 text-[10px] font-black uppercase tracking-widest">
                           Today
                         </span>
                       ) : null}
                     </div>
-                    <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                    <p
+                      className={`mt-1 text-xs font-semibold uppercase tracking-wider flex items-center gap-2 ${
+                        group.date === todayIso ? "text-slate-600 dark:text-blue-200/80" : "text-slate-500 dark:text-slate-400"
+                      }`}
+                    >
                       <CalendarDays size={14} />
                       {formatDateMeta(group.date)}
                       <span className="mx-1">•</span>
@@ -412,28 +435,33 @@ export default function InstructorDirectoryPage() {
                     </p>
                   </div>
                   <div className="px-5 py-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    {group.students.map((student) => (
-                      <div key={`${group.date}-${student.assignmentId}`} className="rounded-xl border border-slate-200 bg-white px-4 py-4 space-y-3 shadow-sm hover:shadow-md transition-shadow">
-                        <p className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    {group.students
+                      .slice(
+                        ((schedulePageByDate[group.date] || 1) - 1) * schedulePageSize,
+                        ((schedulePageByDate[group.date] || 1) - 1) * schedulePageSize + schedulePageSize
+                      )
+                      .map((student) => (
+                      <div key={`${group.date}-${student.assignmentId}`} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-4 space-y-3 shadow-sm hover:shadow-md transition-shadow">
+                        <p className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                           <UserRound size={14} className="text-slate-400" />
                           {student.studentName}
                         </p>
                         <div className="grid grid-cols-2 gap-2 text-[11px]">
-                          <div className="rounded-md bg-slate-50 px-2 py-1.5">
-                            <p className="font-bold text-slate-500">Time</p>
-                            <p className="font-black text-slate-800">{student.timeLabel}</p>
+                          <div className="rounded-md bg-slate-50 dark:bg-slate-800 px-2 py-1.5">
+                            <p className="font-bold text-slate-500 dark:text-slate-400">Time</p>
+                            <p className="font-black text-slate-800 dark:text-slate-100">{student.timeLabel}</p>
                           </div>
-                          <div className="rounded-md bg-slate-50 px-2 py-1.5">
-                            <p className="font-bold text-slate-500">Aircraft</p>
-                            <p className="font-black text-slate-800">{student.aircraftType}</p>
+                          <div className="rounded-md bg-slate-50 dark:bg-slate-800 px-2 py-1.5">
+                            <p className="font-bold text-slate-500 dark:text-slate-400">Aircraft</p>
+                            <p className="font-black text-slate-800 dark:text-slate-100">{student.aircraftType}</p>
                           </div>
-                          <div className="rounded-md bg-slate-50 px-2 py-1.5">
-                            <p className="font-bold text-slate-500">RPC</p>
-                            <p className="font-black text-slate-800">{student.aircraftRegistry}</p>
+                          <div className="rounded-md bg-slate-50 dark:bg-slate-800 px-2 py-1.5">
+                            <p className="font-bold text-slate-500 dark:text-slate-400">RPC</p>
+                            <p className="font-black text-slate-800 dark:text-slate-100">{student.aircraftRegistry}</p>
                           </div>
-                          <div className="rounded-md bg-slate-50 px-2 py-1.5">
-                            <p className="font-bold text-slate-500">Lesson No.</p>
-                            <p className="font-black text-slate-800">{student.lessonNo || "Pending"}</p>
+                          <div className="rounded-md bg-slate-50 dark:bg-slate-800 px-2 py-1.5">
+                            <p className="font-bold text-slate-500 dark:text-slate-400">Lesson No.</p>
+                            <p className="font-black text-slate-800 dark:text-slate-100">{student.lessonNo || "Pending"}</p>
                           </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
@@ -482,9 +510,68 @@ export default function InstructorDirectoryPage() {
                       </div>
                     ))}
                   </div>
+                  {group.students.length > schedulePageSize ? (
+                    <div className="px-5 pb-4 flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSchedulePageByDate((prev) => ({
+                            ...prev,
+                            [group.date]: Math.max((prev[group.date] || 1) - 1, 1),
+                          }))
+                        }
+                        disabled={(schedulePageByDate[group.date] || 1) <= 1}
+                        className="h-8 rounded-md border border-slate-300 px-3 text-[10px] font-black uppercase tracking-wider text-slate-700 disabled:opacity-40"
+                      >
+                        Prev
+                      </button>
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                        Page {schedulePageByDate[group.date] || 1} / {Math.ceil(group.students.length / schedulePageSize)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSchedulePageByDate((prev) => ({
+                            ...prev,
+                            [group.date]: Math.min(
+                              (prev[group.date] || 1) + 1,
+                              Math.ceil(group.students.length / schedulePageSize)
+                            ),
+                          }))
+                        }
+                        disabled={(schedulePageByDate[group.date] || 1) >= Math.ceil(group.students.length / schedulePageSize)}
+                        className="h-8 rounded-md border border-slate-300 px-3 text-[10px] font-black uppercase tracking-wider text-slate-700 disabled:opacity-40"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  ) : null}
                 </section>
               ))
             )}
+            {groups.length > datePageSize ? (
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setDatePage((previous) => Math.max(previous - 1, 1))}
+                  disabled={datePage <= 1}
+                  className="h-8 rounded-md border border-slate-300 px-3 text-[10px] font-black uppercase tracking-wider text-slate-700 disabled:opacity-40"
+                >
+                  Prev Dates
+                </button>
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                  Dates Page {datePage} / {totalDatePages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setDatePage((previous) => Math.min(previous + 1, totalDatePages))}
+                  disabled={datePage >= totalDatePages}
+                  className="h-8 rounded-md border border-slate-300 px-3 text-[10px] font-black uppercase tracking-wider text-slate-700 disabled:opacity-40"
+                >
+                  Next Dates
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

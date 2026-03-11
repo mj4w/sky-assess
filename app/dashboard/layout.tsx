@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { Plane, Bell, Settings, LogOut, Loader2 } from "lucide-react"
+import { Plane, Bell, Settings, LogOut, Loader2, AlertTriangle, Sun, Moon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase" //
 import { useAutoLogout } from "@/hooks/useAutoLogout" //
@@ -36,9 +36,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [notificationColumn, setNotificationColumn] = useState<"notification_read_student" | "notification_read_instructor">("notification_read_student")
   const [assignmentIdColumn, setAssignmentIdColumn] = useState<"student_id" | "instructor_id">("student_id")
   const [assignmentIdCandidates, setAssignmentIdCandidates] = useState<string[]>([])
+  const [showIdReminderModal, setShowIdReminderModal] = useState(false)
+  const [idUpdateRole, setIdUpdateRole] = useState<"student" | "instructor" | null>(null)
+  const [currentIdValue, setCurrentIdValue] = useState("")
+  const [newIdValue, setNewIdValue] = useState("")
+  const [isUpdatingId, setIsUpdatingId] = useState(false)
+  const [idUpdateError, setIdUpdateError] = useState("")
+  const [theme, setTheme] = useState<"light" | "dark">("light")
+  const [showThemeMenu, setShowThemeMenu] = useState(false)
   
   // Initialize your auto-logout hook (Default: 15 mins)
   useAutoLogout(15) 
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const current = document.documentElement.classList.contains("dark") ? "dark" : "light"
+    setTheme(current)
+  }, [])
 
   useEffect(() => {
     const loadAssignmentNotices = async () => {
@@ -48,7 +62,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("role, instructor_id, student_id")
+        .select("role, instructor_id, student_id, login_first_time")
         .eq("id", user.id)
         .single()
       const role = String(profile?.role || "").toLowerCase()
@@ -57,12 +71,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         return
       }
 
+      const idValueRaw = (role === "instructor" ? profile.instructor_id : profile.student_id) || ""
+      const idValue = String(idValueRaw).trim()
+      setIdUpdateRole(role === "instructor" ? "instructor" : "student")
+      setCurrentIdValue(idValue)
+      if (profile.login_first_time !== true) {
+        setShowIdReminderModal(true)
+      }
+
       const idColumn = role === "instructor" ? "instructor_id" : "student_id"
       const readColumn = role === "instructor" ? "notification_read_instructor" : "notification_read_student"
       setNotificationColumn(readColumn)
       setAssignmentIdColumn(idColumn)
-      const idValueRaw = (role === "instructor" ? profile.instructor_id : profile.student_id) || ""
-      const idValue = String(idValueRaw).trim()
       if (!idValue) {
         setAssignmentNotices([])
         return
@@ -72,7 +92,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       const { data, error } = await supabase
         .from("flight_ops_assignments")
-        .select("id, op_date, aircraft_type, aircraft_registry, slot_index, slot_span, notification_read_student, notification_read_instructor")
+        .select("id, op_date, aircraft_type, aircraft_registry, slot_index, slot_span, lesson_no, notification_read_student, notification_read_instructor")
         .eq("op_date", toDateInput(new Date()))
         .in(idColumn, idCandidates)
         .order("slot_index", { ascending: true })
@@ -82,7 +102,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         return
       }
 
-      const notices: AssignmentNotice[] = data.map((row) => {
+      const notices: AssignmentNotice[] = data
+        .filter((row) => {
+          if (idColumn !== "instructor_id") return true
+          const lessonNo = String(row.lesson_no || "").trim()
+          return Boolean(lessonNo)
+        })
+        .map((row) => {
         const start = Number(row.slot_index) || 0
         const span = Number(row.slot_span) || 1
         const end = start + span
@@ -135,9 +161,60 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     loadAssignmentNotices()
   }, [])
 
+  const applyTheme = (nextTheme: "light" | "dark") => {
+    if (typeof window === "undefined") return
+    document.documentElement.classList.toggle("dark", nextTheme === "dark")
+    window.localStorage.setItem("skyassess-theme", nextTheme)
+    setTheme(nextTheme)
+    setShowThemeMenu(false)
+  }
+
   const unreadCount = useMemo(() => {
     return assignmentNotices.filter((item) => !item.notificationRead).length
   }, [assignmentNotices])
+
+  const handleRequiredIdUpdate = async () => {
+    if (!idUpdateRole) return
+    setIdUpdateError("")
+    const normalizedNewId = String(newIdValue || "").trim().toLowerCase()
+    if (!normalizedNewId) {
+      setIdUpdateError("Please enter your official ID.")
+      return
+    }
+    if (!/^[a-z0-9_-]+$/.test(normalizedNewId)) {
+      setIdUpdateError("Use only lowercase letters, numbers, underscore, or dash.")
+      return
+    }
+    if (normalizedNewId === String(currentIdValue || "").trim().toLowerCase()) {
+      setIdUpdateError("Please enter a different official ID.")
+      return
+    }
+
+    setIsUpdatingId(true)
+    try {
+      const { data: authData } = await supabase.auth.getUser()
+      const user = authData.user
+      if (!user) {
+        setIdUpdateError("Session expired. Please login again.")
+        return
+      }
+
+      const { error: rpcError } = await supabase.rpc("sync_personnel_id", {
+        new_personnel_id: normalizedNewId,
+        expected_role: idUpdateRole,
+      })
+      if (rpcError) {
+        setIdUpdateError(rpcError.message)
+        return
+      }
+
+      setShowIdReminderModal(false)
+      setNewIdValue("")
+      window.location.reload()
+    } finally {
+      setIsUpdatingId(false)
+    }
+  }
 
   const handleNotificationClick = async (noticeId: string) => {
     if (assignmentIdCandidates.length === 0) return
@@ -199,8 +276,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="min-h-screen w-full flex flex-col bg-[#FDFDFD] font-sans">
-      <header className="h-16 shrink-0 flex items-center justify-between px-8 bg-white border-b border-slate-100 sticky top-0 z-30 shadow-sm shadow-slate-900/5">
+    <div className="min-h-screen w-full flex flex-col bg-[#FDFDFD] dark:bg-slate-950 font-sans">
+      <header className="h-16 shrink-0 flex items-center justify-between px-8 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-700 sticky top-0 z-30 shadow-sm shadow-slate-900/5">
         
         {/* Left: Branding */}
         <div className="flex items-center gap-4">
@@ -213,10 +290,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Plane className="size-4 text-white -rotate-45" />
             </div>
             <div className="flex flex-col">
-              <h1 className="text-sm font-black italic uppercase tracking-tighter text-slate-900 leading-none">
+              <h1 className="text-sm font-black italic uppercase tracking-tighter text-slate-900 dark:text-slate-100 leading-none">
                 SkyAssess
               </h1>
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+              <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
                 WCC Terminal
               </span>
             </div>
@@ -225,7 +302,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Right: Actions */}
         <div className="flex items-center gap-6">
-          <div className="hidden md:flex items-center gap-4 border-r border-slate-100 pr-6 mr-2 relative">
+          <div className="hidden md:flex items-center gap-4 border-r border-slate-100 dark:border-slate-700 pr-6 mr-2 relative">
             <button
               onClick={() => setShowNotifications((prev) => !prev)}
               className="text-slate-400 hover:text-blue-900 transition-colors relative"
@@ -238,12 +315,39 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </span>
               )}
             </button>
-            <button className="text-slate-400 hover:text-blue-900 transition-colors">
+            <button
+              onClick={() => setShowThemeMenu((prev) => !prev)}
+              className="text-slate-400 hover:text-blue-900 transition-colors"
+              title="Theme settings"
+            >
               <Settings size={18} />
             </button>
+            {showThemeMenu && (
+              <div className="absolute right-0 top-10 w-44 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-40 p-2">
+                <p className="px-2 pb-1 text-[10px] font-black uppercase tracking-widest text-slate-500">Appearance</p>
+                <button
+                  type="button"
+                  onClick={() => applyTheme("light")}
+                  className={`w-full h-9 px-2 rounded-md text-left text-xs font-semibold inline-flex items-center gap-2 ${
+                    theme === "light" ? "bg-blue-50 text-blue-900" : "hover:bg-slate-50 text-slate-700"
+                  }`}
+                >
+                  <Sun size={14} /> Light mode
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyTheme("dark")}
+                  className={`mt-1 w-full h-9 px-2 rounded-md text-left text-xs font-semibold inline-flex items-center gap-2 ${
+                    theme === "dark" ? "bg-blue-50 text-blue-900" : "hover:bg-slate-50 text-slate-700"
+                  }`}
+                >
+                  <Moon size={14} /> Night mode
+                </button>
+              </div>
+            )}
             {showNotifications && (
-              <div className="absolute right-8 top-10 w-96 max-w-[90vw] bg-white border border-slate-200 rounded-xl shadow-xl z-40 overflow-hidden">
-                <div className="px-3 py-2 border-b border-slate-200">
+              <div className="absolute right-8 top-10 w-96 max-w-[90vw] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-40 overflow-hidden">
+                <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-700">
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Notifications</p>
                 </div>
                 <div className="max-h-80 overflow-y-auto">
@@ -255,7 +359,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         key={notice.id}
                         type="button"
                         onClick={() => handleNotificationClick(notice.id)}
-                        className={`w-full text-left px-3 py-2 border-b border-slate-100 last:border-b-0 hover:bg-slate-50 ${
+                        className={`w-full text-left px-3 py-2 border-b border-slate-100 dark:border-slate-700 last:border-b-0 hover:bg-slate-50 dark:hover:bg-slate-800 ${
                           notice.notificationRead ? "text-slate-400" : "text-slate-700"
                         }`}
                       >
@@ -286,11 +390,65 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </header>
 
       <main className="flex-1 w-full relative">
-        <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] bg-size-[16px_16px] opacity-20 pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] dark:bg-[radial-gradient(#334155_1px,transparent_1px)] bg-size-[16px_16px] opacity-20 pointer-events-none" />
         <div className="relative z-10">
           {children}
         </div>
       </main>
+
+      {showIdReminderModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4">
+          <div className="w-full max-w-lg rounded-2xl border border-amber-200 bg-white shadow-2xl">
+            <div className="border-b border-amber-100 bg-amber-50 px-5 py-4">
+              <p className="text-[11px] font-black uppercase tracking-widest text-amber-700">Action Required</p>
+              <div className="mt-2 flex items-center gap-2 text-slate-900">
+                <AlertTriangle size={18} className="text-amber-600" />
+                <h2 className="text-base font-black">Update Your ID Before Proceeding</h2>
+              </div>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <p className="text-sm text-slate-700">
+                Please set your official {idUpdateRole === "instructor" ? "instructor_id" : "student_id"} before proceeding.
+              </p>
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                <p className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">Current ID</p>
+                <p className="text-sm font-black text-slate-900">{currentIdValue || "Not set"}</p>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[11px] font-black uppercase tracking-wider text-slate-600">
+                  New Official {idUpdateRole === "instructor" ? "Instructor" : "Student"} ID
+                </label>
+                <input
+                  value={newIdValue}
+                  onChange={(event) => setNewIdValue(event.target.value)}
+                  disabled={isUpdatingId}
+                  placeholder="e.g. gascon-001"
+                  className="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm font-semibold lowercase"
+                />
+              </div>
+              {idUpdateError ? <p className="text-xs font-semibold text-red-600">{idUpdateError}</p> : null}
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  disabled={isUpdatingId}
+                  className="h-9 rounded-lg border border-slate-300 px-4 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50"
+                >
+                  Logout
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRequiredIdUpdate}
+                  disabled={isUpdatingId}
+                  className="h-9 rounded-lg bg-blue-900 px-4 text-xs font-black uppercase tracking-wider text-white hover:bg-blue-800 disabled:opacity-60"
+                >
+                  {isUpdatingId ? "Updating..." : "Change ID & Continue"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <DebriefCourseModal
         open={showDebriefModal}
