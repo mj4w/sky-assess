@@ -16,6 +16,12 @@ import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import InstructorDirectoryPage from "@/app/dashboard/profiles/page"
 
+type AssignmentUnreadRow = {
+  id: string
+  notification_read_student: boolean | null
+  notification_read_instructor: boolean | null
+}
+
 // --- MINIMALIST NAV BUTTON ---
 const NavButton = ({ href, title, icon, description, onClick, badgeCount = 0 }: any) => {
   const content = (
@@ -95,7 +101,7 @@ export default function DashboardPage() {
       const todayDate = `${today.getFullYear()}-${`${today.getMonth() + 1}`.padStart(2, "0")}-${`${today.getDate()}`.padStart(2, "0")}`
       const { data, error: fetchError } = await supabase
         .from("flight_ops_assignments")
-        .select(`id, ${readColumn}`)
+        .select("id, notification_read_student, notification_read_instructor")
         .eq("op_date", todayDate)
         .in(idColumn, idCandidates)
 
@@ -104,7 +110,14 @@ export default function DashboardPage() {
         return
       }
 
-      setAssignmentUnreadCount(data.filter((row) => !Boolean(row[readColumn])).length)
+      const rows = data as AssignmentUnreadRow[]
+      const unreadCount = rows.filter((row) =>
+        readColumn === "notification_read_instructor"
+          ? !Boolean(row.notification_read_instructor)
+          : !Boolean(row.notification_read_student)
+      ).length
+
+      setAssignmentUnreadCount(unreadCount)
     }
 
     loadUnreadCount()
@@ -125,7 +138,7 @@ export default function DashboardPage() {
 
       const studentCandidates = [...new Set([studentId, studentId.toLowerCase(), studentId.toUpperCase()])]
       const { data, error: fetchError } = await supabase
-        .from("ppl_debriefs")
+        .from("course_debriefs")
         .select("id, notify")
         .in("student_id", studentCandidates)
 

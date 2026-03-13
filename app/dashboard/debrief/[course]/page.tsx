@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { Suspense, useEffect, useState } from "react"
 import { Plus, ArrowLeft } from "lucide-react"
 import { usePilotData } from "@/hooks/usePilotData"
 import Link from "next/link"
@@ -9,6 +9,8 @@ import { supabase } from "@/lib/supabase"
 import { AnimatePresence } from "framer-motion"
 import PPLGradingForm from "./components/PPLGradingForm"
 import CPLGradingForm from "./components/CPLGradingForm"
+import IRGradingForm from "./components/IRGradingForm"
+import MEGradingForm from "./components/MEGradingForm"
 import StudentPPLDebriefReview from "./components/StudentPPLDebriefReview"
 
 interface SessionItem {
@@ -27,6 +29,7 @@ interface SessionItem {
 
 interface StudentDebriefRecord {
   id: string
+  course_code: string
   lesson_no: string
   op_date: string
   rpc: string
@@ -53,7 +56,7 @@ function slotToHour(slot: number) {
   return `${hour.toString().padStart(2, "0")}:00`
 }
 
-export default function PPLDebriefPage() {
+function PPLDebriefPageContent() {
   const params = useParams<{ course?: string }>()
   const [sessions, setSessions] = useState<SessionItem[]>([])
   const [studentDebriefs, setStudentDebriefs] = useState<StudentDebriefRecord[]>([])
@@ -68,9 +71,14 @@ export default function PPLDebriefPage() {
   const selectedCourse = String(params?.course || "ppl").toLowerCase()
   const selectedMeta = courseMeta[selectedCourse] || { code: selectedCourse.toUpperCase(), name: "Debriefing Course" }
 
+  const handleSessionSubmitted = (sessionId: string) => {
+    setSessions((prev) => prev.filter((item) => item.id !== sessionId))
+    setSelectedSession(null)
+    setIsFormOpen(false)
+  }
+
   useEffect(() => {
     if (!pilotData || pilotData.role !== "student") return
-    if (selectedCourse !== "ppl") return
 
     const loadStudentDebriefs = async () => {
       const studentId = String(pilotData.student_id || "").trim()
@@ -80,9 +88,10 @@ export default function PPLDebriefPage() {
       }
       const studentCandidates = [...new Set([studentId, studentId.toLowerCase(), studentId.toUpperCase()])]
       const { data, error } = await supabase
-        .from("ppl_debriefs")
-        .select("id, lesson_no, op_date, rpc, duration, time_label, flight_type, student_name_snapshot, instructor_name_snapshot, instructor_signature_path, student_signature_path, student_signed_at, notify")
+        .from("course_debriefs")
+        .select("id, course_code, lesson_no, op_date, rpc, duration, time_label, flight_type, student_name_snapshot, instructor_name_snapshot, instructor_signature_path, student_signature_path, student_signed_at, notify")
         .in("student_id", studentCandidates)
+        .eq("course_code", selectedMeta.code)
         .order("op_date", { ascending: false })
         .order("created_at", { ascending: false })
 
@@ -98,7 +107,7 @@ export default function PPLDebriefPage() {
         const matched = (data as StudentDebriefRecord[]).find((row) => String(row.id) === debriefId)
         if (matched) {
           if (!matched.notify) {
-            await supabase.from("ppl_debriefs").update({ notify: true }).eq("id", matched.id)
+            await supabase.from("course_debriefs").update({ notify: true }).eq("id", matched.id)
             matched.notify = true
           }
           setSelectedDebrief(matched)
@@ -108,7 +117,7 @@ export default function PPLDebriefPage() {
     }
 
     loadStudentDebriefs()
-  }, [pilotData, selectedCourse, debriefId])
+  }, [pilotData, selectedMeta.code, debriefId])
 
   useEffect(() => {
     const loadSessions = async () => {
@@ -150,8 +159,9 @@ export default function PPLDebriefPage() {
 
       if (assignmentIds.length > 0 || studentCandidates.length > 0) {
         const debriefQuery = supabase
-          .from("ppl_debriefs")
+          .from("course_debriefs")
           .select("assignment_id, student_id, op_date")
+          .eq("course_code", selectedMeta.code)
           .order("created_at", { ascending: false })
           .limit(500)
 
@@ -198,7 +208,7 @@ export default function PPLDebriefPage() {
     }
 
     loadSessions()
-  }, [pilotData, selectedCourse, assignmentId])
+  }, [pilotData, selectedMeta.code, assignmentId])
 
   if (loading || !pilotData) {
     return <div className="p-10 text-sm text-slate-400">Loading...</div>
@@ -223,7 +233,7 @@ export default function PPLDebriefPage() {
         </div>
       </div>
 
-      {pilotData.role === "student" && selectedCourse === "ppl" ? (
+      {pilotData.role === "student" ? (
         studentDebriefs.length === 0 ? (
           <div className="border-2 border-dashed border-slate-200 rounded-[2rem] h-64 flex flex-col items-center justify-center bg-white/50">
             <div className="bg-slate-100 p-4 rounded-full mb-4">
@@ -241,7 +251,7 @@ export default function PPLDebriefPage() {
                 type="button"
                 onClick={async () => {
                   if (!record.notify) {
-                    await supabase.from("ppl_debriefs").update({ notify: true }).eq("id", record.id)
+                    await supabase.from("course_debriefs").update({ notify: true }).eq("id", record.id)
                     setStudentDebriefs((prev) =>
                       prev.map((item) => (item.id === record.id ? { ...item, notify: true } : item))
                     )
@@ -252,7 +262,7 @@ export default function PPLDebriefPage() {
                 className="w-full text-left bg-white border border-slate-200 rounded-2xl p-4 hover:border-blue-900 hover:bg-blue-50/30 transition-all"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">PPL Debrief Record</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{record.course_code} Debrief Record</p>
                   {!record.notify ? (
                     <span className="inline-flex items-center rounded-full bg-red-100 text-red-700 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider">
                       New
@@ -306,6 +316,7 @@ export default function PPLDebriefPage() {
             <CPLGradingForm
               key={selectedSession.id}
               onClose={() => setIsFormOpen(false)}
+              onSubmitted={() => handleSessionSubmitted(selectedSession.id)}
               instructorName={pilotData?.full_name || pilotData?.instructor_id || pilotData?.email || "Instructor"}
               role={pilotData?.role || "student"}
               initialSession={{
@@ -320,10 +331,47 @@ export default function PPLDebriefPage() {
                 instructorId: selectedSession.instructorId,
               }}
             />
+          ) : selectedCourse === "ir" ? (
+            <IRGradingForm
+              key={selectedSession.id}
+              onClose={() => setIsFormOpen(false)}
+              onSubmitted={() => handleSessionSubmitted(selectedSession.id)}
+              instructorName={pilotData?.full_name || pilotData?.instructor_id || pilotData?.email || "Instructor"}
+              role={pilotData?.role || "student"}
+              initialSession={{
+                lessonNo: selectedSession.lessonNo,
+                date: selectedSession.opDate,
+                rpc: selectedSession.aircraftRegistry,
+                duration: `${selectedSession.slotSpan} Hour${selectedSession.slotSpan > 1 ? "s" : ""}`,
+                flightType: selectedSession.flightType,
+                timeLabel: selectedSession.timeLabel,
+                studentId: selectedSession.studentId,
+                instructorId: selectedSession.instructorId,
+              }}
+            />
+          ) : selectedCourse === "me" ? (
+            <MEGradingForm
+              key={selectedSession.id}
+              onClose={() => setIsFormOpen(false)}
+              onSubmitted={() => handleSessionSubmitted(selectedSession.id)}
+              instructorName={pilotData?.full_name || pilotData?.instructor_id || pilotData?.email || "Instructor"}
+              role={pilotData?.role || "student"}
+              initialSession={{
+                lessonNo: selectedSession.lessonNo,
+                date: selectedSession.opDate,
+                rpc: selectedSession.aircraftRegistry,
+                duration: `${selectedSession.slotSpan} Hour${selectedSession.slotSpan > 1 ? "s" : ""}`,
+                flightType: selectedSession.flightType,
+                timeLabel: selectedSession.timeLabel,
+                studentId: selectedSession.studentId,
+                instructorId: selectedSession.instructorId,
+              }}
+            />
           ) : (
             <PPLGradingForm
               key={selectedSession.id}
               onClose={() => setIsFormOpen(false)}
+              onSubmitted={() => handleSessionSubmitted(selectedSession.id)}
               instructorName={pilotData?.full_name || pilotData?.instructor_id || pilotData?.email || "Instructor"}
               role={pilotData?.role || "student"}
               initialSession={{
@@ -362,5 +410,13 @@ export default function PPLDebriefPage() {
         }}
       />
     </div>
+  )
+}
+
+export default function PPLDebriefPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#FDFDFD]" />}>
+      <PPLDebriefPageContent />
+    </Suspense>
   )
 }

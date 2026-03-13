@@ -1,453 +1,211 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
-import { Plane, X, User, Calendar, Clock, Hash, PenTool, ClipboardCheck, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react'
-import { motion } from 'framer-motion'
+import SharedCourseGradingForm from "./SharedCourseGradingForm"
 import { supabase } from "@/lib/supabase"
-import InstructorSignaturePad from "./InstructorSignaturePad"
-
-const GRADES = ["S+", "S", "S-", "NP"]
-
-interface InitialSession {
-  assignmentId?: string
-  lessonNo?: string
-  date: string
-  rpc: string
-  duration: string
-  flightType: string
-  timeLabel: string
-  studentId?: string
-  instructorId?: string
-}
 
 const PPL_SECTIONS = [
   {
     title: "Preflight Items",
-    items: ["Pre-flight Inspection", "Engine Starting", "Taxiing", "Before Takeoff Check"]
+    items: ["Pre-flight Inspection", "Engine Starting", "Taxiing", "Before Takeoff Check"],
   },
   {
     title: "Traffic Pattern",
-    items: ["Normal Takeoff & Climb", "Normal Approach & Landing", "Power-Off Landings (90°/180°/360°)", "Landings with Flap Settings", "Go-Around/Missed Approach Procedure"]
+    items: [
+      "Normal Takeoff and Climb",
+      "Normal Approach and Landing",
+      "Power-Off Landings (90 / 180 / 360)",
+      "Landings with Flap Settings",
+      "Go-Around / Missed Approach Procedure",
+    ],
   },
   {
     title: "Aerial Maneuvers",
-    items: ["Straight & Level", "Climbs & Descents", "Turns", "Climbing & Descending Turns", "Slow Flight (Clean & Dirty)", "Power-On Stalls", "Power-Off Stalls", "Spin Awareness (Discussion)", "Aerodrome Entry & Exit Procedures"]
-  }
+    items: [
+      "Straight and Level",
+      "Climbs and Descents",
+      "Turns",
+      "Climbing and Descending Turns",
+      "Slow Flight (Clean and Dirty)",
+      "Power-On Stalls",
+      "Power-Off Stalls",
+      "Spin Awareness (Discussion)",
+      "Aerodrome Entry and Exit Procedures",
+    ],
+  },
 ]
 
-export default function PPLGradingForm({
-  onClose,
-  instructorName,
-  role,
-  initialSession,
-}: {
+export default function PPLGradingForm(props: {
   onClose: () => void
+  onSubmitted?: () => void
   instructorName: string
   role: string
-  initialSession?: InitialSession
+  initialSession?: {
+    assignmentId?: string
+    lessonNo?: string
+    date: string
+    rpc: string
+    duration: string
+    flightType: string
+    timeLabel: string
+    studentId?: string
+    instructorId?: string
+  }
 }) {
-  const [selectedStudent, setSelectedStudent] = useState("")
-  const [studentPilotLabel, setStudentPilotLabel] = useState(initialSession?.studentId || "N/A")
-  const [resolvedInstructorName, setResolvedInstructorName] = useState(instructorName)
-  const [resolvedStudentId, setResolvedStudentId] = useState(String(initialSession?.studentId || "").trim())
-  const [resolvedInstructorId, setResolvedInstructorId] = useState(String(initialSession?.instructorId || "").trim())
-  const [lessonNo, setLessonNo] = useState(initialSession?.lessonNo || "")
-  const [rpc, setRpc] = useState(initialSession?.rpc || "")
-  const [duration, setDuration] = useState(initialSession?.duration || "")
-  const [date, setDate] = useState(initialSession?.date || new Date().toISOString().split('T')[0])
-  const [formData, setFormData] = useState<Record<string, { grade: string, remark: string }>>({})
-  const [signatureDataUrl, setSignatureDataUrl] = useState("")
-  const [submitting, setSubmitting] = useState(false)
-  const [submitProgress, setSubmitProgress] = useState("")
-  const [submitNotice, setSubmitNotice] = useState<{ type: "success" | "error" | "warning"; message: string } | null>(null)
-
-  const isInstructor = role?.toLowerCase() === "instructor";
-  const canEditLessonNo = !isInstructor
-  const canEditInstructorSection = isInstructor
-
-  useEffect(() => {
-    const resolveSessionActors = async () => {
-      let resolvedStudentId = String(initialSession?.studentId || "").trim()
-      let resolvedStudentLabel = resolvedStudentId
-
-      if (!isInstructor) {
-        const { data: authData } = await supabase.auth.getUser()
-        if (!authData.user) return
-
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("id, student_id, email")
-          .eq("id", authData.user.id)
+  return (
+    <SharedCourseGradingForm
+      {...props}
+      courseCode="PPL"
+      courseTitle="PPL Grading Sheet"
+      courseSubtitle="Private Pilot License Course"
+      lessonPlaceholder="e.g. 18"
+      accent={{
+        iconBg: "bg-blue-900",
+        headingText: "text-blue-900",
+        headingBorder: "border-blue-900",
+        buttonBg: "bg-blue-900",
+        buttonHover: "hover:bg-blue-800",
+        focusRing: "focus:ring-1 focus:ring-blue-900",
+        gradeActive: "bg-blue-900 border-blue-900",
+        gradeHover: "hover:border-blue-500",
+      }}
+      sections={PPL_SECTIONS}
+      submitHandler={async ({
+        authUserId,
+        signaturePath,
+        lessonNo,
+        date,
+        rpc,
+        duration,
+        assignmentId,
+        flightType,
+        timeLabel,
+        studentId,
+        studentName,
+        instructorId,
+        instructorName,
+        sections,
+        formData,
+      }) => {
+        const { data: legacyRow, error: legacyError } = await supabase
+          .from("ppl_debriefs")
+          .insert([
+            {
+              assignment_id: assignmentId || null,
+              student_id: studentId,
+              student_name_snapshot: studentName,
+              instructor_id: instructorId,
+              instructor_name_snapshot: instructorName,
+              lesson_no: lessonNo,
+              op_date: date,
+              rpc,
+              duration,
+              flight_type: flightType || null,
+              time_label: timeLabel || null,
+              instructor_signature_path: signaturePath,
+              notify: false,
+              created_by: authUserId,
+            },
+          ])
+          .select("id")
           .single()
 
-        if (!error && data) {
-          setSelectedStudent(String(data.student_id || "").trim() || String(data.id))
-          resolvedStudentId = String(data.student_id || "").trim()
-          resolvedStudentLabel = resolvedStudentId || String(data.email || "").trim()
-        }
-      } else if (resolvedStudentId) {
-        setSelectedStudent(resolvedStudentId)
-      }
+        if (legacyError) throw legacyError
 
-      if (resolvedStudentId) {
-        const studentCandidates = [...new Set([resolvedStudentId, resolvedStudentId.toUpperCase(), resolvedStudentId.toLowerCase()])]
-        const { data: studentRows } = await supabase
-          .from("student_info")
-          .select("student_id, full_name")
-          .in("student_id", studentCandidates)
+        const legacyItemRows = sections.flatMap((section) =>
+          section.items.map((item) => ({
+            debrief_id: legacyRow.id,
+            section_title: section.title,
+            item_name: item,
+            grade: formData[item]?.grade || null,
+            remark: (formData[item]?.remark || "").trim() || null,
+          }))
+        )
+
+        const { error: legacyItemsError } = await supabase.from("ppl_debrief_items").insert(legacyItemRows)
+        if (legacyItemsError) throw legacyItemsError
+
+        const { data: genericRow, error: genericError } = await supabase
+          .from("course_debriefs")
+          .insert([
+            {
+              course_code: "PPL",
+              assignment_id: assignmentId || null,
+              student_id: studentId,
+              student_name_snapshot: studentName,
+              instructor_id: instructorId,
+              instructor_name_snapshot: instructorName,
+              lesson_no: lessonNo,
+              op_date: date,
+              rpc,
+              duration,
+              flight_type: flightType || null,
+              time_label: timeLabel || null,
+              instructor_signature_path: signaturePath,
+              notify: false,
+              created_by: authUserId,
+            },
+          ])
+          .select("id")
+          .single()
+
+        if (genericError) throw genericError
+
+        const genericItemRows = sections.flatMap((section) =>
+          section.items.map((item) => ({
+            debrief_id: genericRow.id,
+            section_title: section.title,
+            item_name: item,
+            grade: formData[item]?.grade || null,
+            remark: (formData[item]?.remark || "").trim() || null,
+          }))
+        )
+
+        const { error: genericItemsError } = await supabase.from("course_debrief_items").insert(genericItemRows)
+        if (genericItemsError) throw genericItemsError
+
+        if (assignmentId) {
+          const { error: assignmentUpdateError } = await supabase
+            .from("flight_ops_assignments")
+            .update({ notification_read_instructor: true })
+            .eq("id", assignmentId)
+
+          if (assignmentUpdateError) throw assignmentUpdateError
+        }
+
+        let warningMessage = ""
+        const { data: studentProfileRows, error: studentProfileError } = await supabase
+          .from("profiles")
+          .select("email")
+          .ilike("student_id", studentId)
           .limit(1)
 
-        const fullName = String(studentRows?.[0]?.full_name || "").trim()
-        if (fullName) resolvedStudentLabel = fullName
-      }
-      setStudentPilotLabel(resolvedStudentLabel || resolvedStudentId || "N/A")
-      setResolvedStudentId(resolvedStudentId)
-
-      const rawInstructorId = (initialSession?.instructorId || "").trim()
-      if (!rawInstructorId) {
-        setResolvedInstructorName(instructorName)
-        return
-      }
-
-      const candidates = [...new Set([rawInstructorId, rawInstructorId.toUpperCase(), rawInstructorId.toLowerCase()])]
-      const { data, error } = await supabase
-        .from("instructor_info")
-        .select("full_name, instructor_id")
-        .in("instructor_id", candidates)
-        .limit(1)
-
-      if (!error && data?.[0]?.full_name) {
-        setResolvedInstructorName(data[0].full_name)
-      } else {
-        setResolvedInstructorName(rawInstructorId || instructorName)
-      }
-      setResolvedInstructorId(rawInstructorId)
-    }
-
-    resolveSessionActors()
-  }, [initialSession, instructorName, isInstructor])
-
-  const handleUpdate = (item: string, field: 'grade' | 'remark', value: string) => {
-    if (!canEditInstructorSection) return // Students cannot edit grading items
-    setFormData(prev => ({
-      ...prev,
-      [item]: { ...prev[item], [field]: value }
-    }))
-  }
-
-  const submitDebriefing = async () => {
-    if (submitting) return
-    setSubmitNotice(null)
-    if (!signatureDataUrl) {
-      setSubmitNotice({ type: "error", message: "Instructor signature is required before submitting." })
-      return
-    }
-    if (!lessonNo.trim()) {
-      setSubmitNotice({ type: "error", message: "Lesson number is required before submitting." })
-      return
-    }
-
-    setSubmitting(true)
-    setSubmitProgress("Preparing debrief submission...")
-    try {
-      const { data: authData, error: authError } = await supabase.auth.getUser()
-      if (authError) throw authError
-      if (!authData.user) throw new Error("You must be logged in to submit this debriefing.")
-
-      setSubmitProgress("Uploading instructor signature...")
-      const signatureBlob = await (await fetch(signatureDataUrl)).blob()
-      const filePath = `${authData.user.id}/${Date.now()}-${crypto.randomUUID()}.png`
-      const uploadResult = await supabase.storage
-        .from("debrief-signatures")
-        .upload(filePath, signatureBlob, { contentType: "image/png", upsert: false })
-
-      if (uploadResult.error) throw uploadResult.error
-
-      const studentId = (resolvedStudentId || initialSession?.studentId || selectedStudent || "").trim().toLowerCase()
-      const instructorId = (resolvedInstructorId || initialSession?.instructorId || "").trim().toLowerCase()
-      if (!studentId || !instructorId) {
-        throw new Error("Student ID or Instructor ID is missing for this session.")
-      }
-
-      setSubmitProgress("Saving debrief record...")
-      const { data: headerRow, error: headerError } = await supabase
-        .from("ppl_debriefs")
-        .insert([
-          {
-            assignment_id: initialSession?.assignmentId || null,
-            student_id: studentId,
-            student_name_snapshot: studentPilotLabel,
-            instructor_id: instructorId,
-            instructor_name_snapshot: resolvedInstructorName,
-            lesson_no: lessonNo.trim(),
-            op_date: date,
-            rpc,
-            duration,
-            flight_type: initialSession?.flightType || null,
-            time_label: initialSession?.timeLabel || null,
-            instructor_signature_path: filePath,
-            notify: false,
-            created_by: authData.user.id,
-          },
-        ])
-        .select("id")
-        .single()
-
-      if (headerError) throw headerError
-
-      setSubmitProgress("Saving grading items...")
-      const debriefItems = PPL_SECTIONS.flatMap((section) =>
-        section.items.map((item) => ({
-          debrief_id: headerRow.id,
-          section_title: section.title,
-          item_name: item,
-          grade: formData[item]?.grade || null,
-          remark: (formData[item]?.remark || "").trim() || null,
-        }))
-      )
-
-      const { error: itemsError } = await supabase.from("ppl_debrief_items").insert(debriefItems)
-      if (itemsError) throw itemsError
-
-      if (initialSession?.assignmentId) {
-        setSubmitProgress("Updating assignment status...")
-        const { error: assignmentUpdateError } = await supabase
-          .from("flight_ops_assignments")
-          .update({ notification_read_instructor: true })
-          .eq("id", initialSession.assignmentId)
-
-        if (assignmentUpdateError) throw assignmentUpdateError
-      }
-
-      let warningMessage = ""
-      const { data: studentProfileRows, error: studentProfileError } = await supabase
-        .from("profiles")
-        .select("email")
-        .ilike("student_id", studentId)
-        .limit(1)
-
-      if (studentProfileError) throw studentProfileError
-      const studentEmail = String(studentProfileRows?.[0]?.email || "").trim()
-      if (studentEmail) {
-        setSubmitProgress("Sending completion notice to student...")
-        const notifyResponse = await fetch("/api/reminders/debrief-complete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            to: studentEmail,
-            studentName: studentPilotLabel,
-            instructorName: resolvedInstructorName,
-            courseCode: "PPL",
-            lessonNo: lessonNo.trim(),
-            debriefUrl: `${window.location.origin}/debrief-access?debrief_id=${encodeURIComponent(headerRow.id)}`,
-          }),
-        })
-        if (!notifyResponse.ok) {
-          const payload = await notifyResponse.json().catch(() => ({}))
-          warningMessage = `Debrief saved, but student email notification failed: ${payload?.error || "Unknown error."}`
+        if (studentProfileError) throw studentProfileError
+        const studentEmail = String(studentProfileRows?.[0]?.email || "").trim()
+        if (studentEmail && typeof window !== "undefined") {
+          const notifyResponse = await fetch("/api/reminders/debrief-complete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              to: studentEmail,
+              studentName,
+              instructorName,
+              courseCode: "PPL",
+              lessonNo,
+              debriefUrl: `${window.location.origin}/debrief-access?debrief_id=${encodeURIComponent(legacyRow.id)}`,
+            }),
+          })
+          if (!notifyResponse.ok) {
+            const payload = await notifyResponse.json().catch(() => ({}))
+            warningMessage = `Debrief saved, but student email notification failed: ${payload?.error || "Unknown error."}`
+          }
+        } else {
+          warningMessage = "Debrief saved, but student has no registered email to notify."
         }
-      } else {
-        warningMessage = "Debrief saved, but student has no registered email to notify."
-      }
 
-      if (warningMessage) {
-        setSubmitNotice({ type: "warning", message: warningMessage })
-      } else {
-        setSubmitNotice({ type: "success", message: "PPL debrief submitted successfully." })
-      }
-      setSubmitProgress("Submission completed.")
-      setTimeout(() => onClose(), 900)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to submit PPL debriefing."
-      setSubmitNotice({ type: "error", message })
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  return (
-    // Fixed z-100 to z-[100] so it correctly applies the z-index in Tailwind
-    <div className="fixed inset-0 z-100 flex items-center justify-end">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} onClick={onClose} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
-
-      <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} className="relative w-full max-w-4xl bg-white h-full shadow-2xl flex flex-col overflow-hidden">
-        
-        {/* Header */}
-        <header className="p-6 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-20">
-          <div className="flex items-center gap-4">
-            <div className="bg-blue-900 p-2 rounded-lg text-white"><Plane className="size-5 -rotate-45" /></div>
-            <div>
-              <h2 className="text-xl font-black italic uppercase text-slate-900">PPL Grading Sheet</h2>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Flight Operations Department</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full"><X size={24} /></button>
-        </header>
-
-        <div className="flex-1 overflow-y-auto p-8 bg-[#FDFDFD]">
-          
-          <div className="space-y-8">
-            {/* SESSION METADATA BLOCK */}
-            <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm transition-opacity ${canEditLessonNo ? "opacity-100" : "opacity-55"}`}>
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2"><User size={12}/> Student Pilot</label>
-                <input
-                  disabled
-                  value={studentPilotLabel}
-                  className="w-full p-2 rounded-lg text-sm font-bold text-slate-500 cursor-not-allowed bg-slate-100"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2"><PenTool size={12}/> Flight Instructor</label>
-                {/* Always disabled because auto-filled with current instructor's name */}
-                <input disabled value={resolvedInstructorName} className="w-full p-2 rounded-lg text-sm font-bold text-slate-500 cursor-not-allowed bg-slate-100" />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2"><Hash size={12}/> Lesson No.</label>
-                <input 
-                  disabled={!canEditLessonNo} 
-                  type="text" value={lessonNo} onChange={(e) => setLessonNo(e.target.value)} placeholder="e.g. 18" 
-                  className={`w-full p-2 rounded-lg border-none text-sm font-bold ${!canEditLessonNo ? "bg-slate-100 cursor-not-allowed text-slate-500" : "bg-slate-50"}`} 
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2"><Calendar size={12}/> Date</label>
-                <input 
-                  disabled
-                  type="date" value={date} onChange={(e) => setDate(e.target.value)}
-                  className="w-full p-2 rounded-lg border-none text-sm font-bold bg-slate-100 cursor-not-allowed text-slate-500"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2"><Plane size={12}/> RPC</label>
-                <input 
-                  disabled
-                  type="text" value={rpc} onChange={(e) => setRpc(e.target.value)} placeholder="e.g. RP-C1984"
-                  className="w-full p-2 rounded-lg border-none text-sm font-bold bg-slate-100 cursor-not-allowed text-slate-500"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2"><Clock size={12}/> Duration</label>
-                <input 
-                  disabled
-                  type="text" value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="e.g. 1.5 Hours"
-                  className="w-full p-2 rounded-lg border-none text-sm font-bold bg-slate-100 cursor-not-allowed text-slate-500"
-                />
-              </div>
-
-              {initialSession && (
-                <div className="space-y-1 lg:col-span-3">
-                  <label className="text-[10px] font-black uppercase text-slate-400">Assigned Session</label>
-                  <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">
-                    {initialSession.timeLabel} - {initialSession.flightType}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* GRADING ITEMS */}
-            {PPL_SECTIONS.map((section) => (
-              <section key={section.title} className="space-y-4">
-                <h3 className="text-xs font-black uppercase text-blue-900 tracking-[0.2em] border-l-4 border-blue-900 pl-3">{section.title}</h3>
-                <div className={`space-y-3 transition-opacity ${canEditInstructorSection ? "opacity-100" : "opacity-55"}`}>
-                  {section.items.map((item) => (
-                    <div key={item} className="bg-white border border-slate-100 rounded-xl overflow-hidden shadow-sm">
-                      <div className="flex flex-col md:flex-row md:items-center justify-between p-4 gap-4">
-                        <span className="text-sm font-bold text-slate-700 w-full md:w-1/3">{item}</span>
-                        
-                        {/* Grade Selector */}
-                        <div className="flex gap-1 shrink-0">
-                          {GRADES.map((grade) => (
-                            <button
-                              key={grade}
-                              onClick={() => handleUpdate(item, 'grade', grade)}
-                              disabled={!canEditInstructorSection}
-                              className={`w-10 h-9 rounded-lg text-[10px] font-black border-2 transition-all ${
-                                formData[item]?.grade === grade ? 'bg-blue-900 border-blue-900 text-white' : 'bg-white border-slate-100 text-slate-400 hover:border-blue-900'
-                              } ${!canEditInstructorSection ? "opacity-50 cursor-not-allowed" : ""}`}
-                            >
-                              {grade}
-                            </button>
-                          ))}
-                        </div>
-
-                        {/* Individual Remark */}
-                        <input 
-                          type="text" 
-                          placeholder="Item remark..."
-                          disabled={!canEditInstructorSection}
-                          className={`flex-1 rounded-lg border-none text-[11px] p-2 focus:ring-1 focus:ring-blue-900 ${!canEditInstructorSection ? "bg-slate-100 cursor-not-allowed text-slate-500" : "bg-slate-50"}`}
-                          onChange={(e) => handleUpdate(item, 'remark', e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            ))}
-
-            <div className={`transition-opacity ${canEditInstructorSection ? "opacity-100" : "opacity-55"}`}>
-              <InstructorSignaturePad
-                value={signatureDataUrl}
-                onChange={setSignatureDataUrl}
-                disabled={!canEditInstructorSection}
-              />
-            </div>
-
-            {submitNotice && (
-              <div
-                className={`rounded-xl border px-4 py-3 text-sm font-semibold ${
-                  submitNotice.type === "success"
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                    : submitNotice.type === "warning"
-                      ? "border-amber-200 bg-amber-50 text-amber-800"
-                      : "border-red-200 bg-red-50 text-red-800"
-                }`}
-              >
-                <div className="flex items-start gap-2">
-                  {submitNotice.type === "success" ? <CheckCircle2 size={16} className="mt-0.5" /> : <AlertTriangle size={16} className="mt-0.5" />}
-                  <span>{submitNotice.message}</span>
-                </div>
-              </div>
-            )}
-
-            {/* ACTION FOOTER - DYNAMIC BUTTONS */}
-            <div className="pt-8 pb-4 flex justify-end gap-4 border-t border-slate-200 mt-8">
-              {submitting && (
-                <div className="mr-auto inline-flex items-center gap-2 text-xs font-bold text-blue-900 bg-blue-50 border border-blue-200 px-3 py-2 rounded-lg">
-                  <Loader2 size={14} className="animate-spin" />
-                  {submitProgress || "Submitting..."}
-                </div>
-              )}
-              <button 
-                onClick={onClose}
-                className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors"
-                disabled={submitting}
-              >
-                {canEditLessonNo ? "Close Sheet" : "Cancel"}
-              </button>
-              
-              {canEditInstructorSection && (
-                <button 
-                  type="button"
-                  disabled={submitting}
-                  className="px-6 py-3 rounded-xl font-black bg-blue-900 text-white hover:bg-blue-800 transition-colors flex items-center gap-2 uppercase tracking-wide"
-                  onClick={submitDebriefing}
-                >
-                  <ClipboardCheck size={18} />
-                  {submitting ? "Submitting..." : "Submit Evaluation"}
-                </button>
-              )}
-            </div>
-
-          </div>
-        </div>
-      </motion.div>
-    </div>
+        return warningMessage
+          ? { type: "warning" as const, message: warningMessage }
+          : { type: "success" as const, message: "PPL debrief submitted successfully." }
+      }}
+    />
   )
 }

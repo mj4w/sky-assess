@@ -12,7 +12,7 @@ interface AssignmentNotice {
   text: string
   notificationRead: boolean
   targetUrl: string
-  type: "assignment" | "evaluation"
+  type: "assignment" | "evaluation" | "debrief"
 }
 
 function toDateInput(date: Date) {
@@ -135,6 +135,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       let mergedNotices = notices.filter((item) => !item.notificationRead)
 
+      if (role === "student") {
+        const { data: debriefRows, error: debriefError } = await supabase
+          .from("course_debriefs")
+          .select("id, course_code, lesson_no, notify")
+          .in("student_id", idCandidates)
+          .eq("notify", false)
+          .order("created_at", { ascending: false })
+
+        if (!debriefError && debriefRows) {
+          const debriefNotices: AssignmentNotice[] = debriefRows.map((row) => {
+            const courseCode = String(row.course_code || "ppl").toLowerCase()
+            const lessonNo = String(row.lesson_no || "").trim()
+            return {
+              id: String(row.id),
+              text: `${String(row.course_code || "PPL")} debrief completed${lessonNo ? ` for lesson ${lessonNo}` : ""}.`,
+              notificationRead: false,
+              type: "debrief",
+              targetUrl: `/dashboard/debrief/${courseCode}?debrief_id=${encodeURIComponent(String(row.id))}`,
+            }
+          })
+          mergedNotices = [...debriefNotices, ...mergedNotices]
+        }
+      }
+
       if (role === "instructor") {
         const { data: evalData, error: evalError } = await supabase
           .from("student_instructor_feedback")
@@ -230,6 +254,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .eq("id", noticeId)
         .in("instructor_id", assignmentIdCandidates)
       error = result.error
+    } else if (notice.type === "debrief") {
+      const result = await supabase
+        .from("course_debriefs")
+        .update({ notify: true })
+        .eq("id", noticeId)
+        .in("student_id", assignmentIdCandidates)
+      error = result.error
     } else {
       const result = await supabase
         .from("flight_ops_assignments")
@@ -249,6 +280,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       return
     }
     if (target.startsWith("/dashboard/evaluate")) {
+      router.push(target)
+      return
+    }
+    if (target.startsWith("/dashboard/debrief/")) {
       router.push(target)
       return
     }

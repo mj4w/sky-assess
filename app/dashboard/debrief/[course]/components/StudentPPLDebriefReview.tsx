@@ -15,6 +15,7 @@ interface DebriefItem {
 
 interface DebriefRecord {
   id: string
+  course_code?: string | null
   lesson_no: string
   op_date: string
   rpc: string
@@ -26,6 +27,13 @@ interface DebriefRecord {
   instructor_signature_path: string
   student_signature_path: string | null
   student_signed_at: string | null
+}
+
+const courseMeta: Record<string, { title: string; sheet: string }> = {
+  PPL: { title: "Private Pilot License Course", sheet: "PPL Grading Sheet" },
+  CPL: { title: "Commercial Pilot License Course", sheet: "CPL Grading Sheet" },
+  IR: { title: "Instrument Rating Course", sheet: "IR Grading Sheet" },
+  ME: { title: "Multi-Engine Rating Course", sheet: "Multi-Engine Grading Sheet" },
 }
 
 function formatDateLabel(value: string) {
@@ -71,7 +79,7 @@ export default function StudentPPLDebriefReview({
       setNotice("")
       const [{ data: itemRows }, instructorUrlResponse, studentUrlResponse] = await Promise.all([
         supabase
-          .from("ppl_debrief_items")
+          .from("course_debrief_items")
           .select("section_title, item_name, grade, remark")
           .eq("debrief_id", record.id),
         supabase.storage.from("debrief-signatures").createSignedUrl(record.instructor_signature_path, 60 * 60),
@@ -168,6 +176,8 @@ export default function StudentPPLDebriefReview({
 
   const downloadPdf = async (studentSignatureUrlOverride?: string) => {
     if (!record) return
+    const courseCode = String(record.course_code || "PPL").toUpperCase()
+    const meta = courseMeta[courseCode] || { title: `${courseCode} Course`, sheet: `${courseCode} Grading Sheet` }
     const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" })
     const pageWidth = pdf.internal.pageSize.getWidth()
     const pageHeight = pdf.internal.pageSize.getHeight()
@@ -194,10 +204,10 @@ export default function StudentPPLDebriefReview({
 
     pdf.setFont("helvetica", "bold")
     pdf.setFontSize(20)
-    pdf.text("Private Pilot License Course", margin, y)
+    pdf.text(meta.title, margin, y)
     y += 24
     pdf.setFontSize(12)
-    pdf.text("PPL Grading Sheet", margin, y)
+    pdf.text(meta.sheet, margin, y)
     y += 22
 
     pdf.setDrawColor(180)
@@ -292,7 +302,7 @@ export default function StudentPPLDebriefReview({
       pdf.addImage(instructorDataUrl, "PNG", margin + signatureWidth + 24, signatureTop + 4, signatureWidth - 8, signatureHeight - 8)
     }
 
-    pdf.save(`PPL-Debrief-${record.lesson_no || record.id}.pdf`)
+    pdf.save(`${courseCode}-Debrief-${record.lesson_no || record.id}.pdf`)
   }
 
   const handleSubmit = async () => {
@@ -316,7 +326,7 @@ export default function StudentPPLDebriefReview({
 
       const signedAt = new Date().toISOString()
       const { error: updateError } = await supabase
-        .from("ppl_debriefs")
+        .from("course_debriefs")
         .update({
           student_signature_path: filePath,
           student_signed_at: signedAt,
@@ -342,6 +352,8 @@ export default function StudentPPLDebriefReview({
   }
 
   if (!open || !record) return null
+  const courseCode = String(record.course_code || "PPL").toUpperCase()
+  const meta = courseMeta[courseCode] || { title: `${courseCode} Course`, sheet: `${courseCode} Grading Sheet` }
 
   return (
     <div className="fixed inset-0 z-60 bg-slate-900/60 backdrop-blur-sm p-4 flex items-center justify-center">
@@ -349,7 +361,7 @@ export default function StudentPPLDebriefReview({
         <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Student Debrief Review</p>
-            <h2 className="text-lg font-black text-slate-900">PPL Grading Sheet</h2>
+            <h2 className="text-lg font-black text-slate-900">{meta.sheet}</h2>
           </div>
           <button type="button" onClick={onClose} className="h-8 w-8 rounded-lg border border-slate-300 hover:bg-slate-50">
             <X size={14} className="mx-auto" />
@@ -362,8 +374,8 @@ export default function StudentPPLDebriefReview({
           ) : (
             <div id="student-ppl-debrief-pdf" className="mx-auto max-w-4xl bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
               <div className="text-center border-b border-slate-200 pb-4">
-                <h3 className="text-2xl font-black text-slate-900">Private Pilot License Course</h3>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">PPL Grading Sheet</p>
+                <h3 className="text-2xl font-black text-slate-900">{meta.title}</h3>
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{meta.sheet}</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
@@ -445,7 +457,7 @@ export default function StudentPPLDebriefReview({
             {notice}
           </p>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={downloadPdf} className="h-10 px-4 rounded-lg border border-slate-300 text-sm font-bold text-slate-700 inline-flex items-center gap-2">
+            <button type="button" onClick={() => void downloadPdf()} className="h-10 px-4 rounded-lg border border-slate-300 text-sm font-bold text-slate-700 inline-flex items-center gap-2">
               <Download size={14} />
               Download PDF
             </button>

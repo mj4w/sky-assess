@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -24,7 +24,7 @@ function slotToHour(slot: number) {
   return `${hour.toString().padStart(2, "0")}:00`
 }
 
-export default function TasksPage() {
+function TasksPageContent() {
   const router = useRouter()
   const { pilotData, loading } = usePilotData()
   const searchParams = useSearchParams()
@@ -250,5 +250,13 @@ export default function TasksPage() {
         <p className="text-xs font-semibold text-blue-700">{saveMessage}</p>
       )}
     </div>
+  )
+}
+
+export default function TasksPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#FDFDFD]" />}>
+      <TasksPageContent />
+    </Suspense>
   )
 }

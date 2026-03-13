@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { useSearchParams } from "next/navigation"
@@ -19,7 +19,7 @@ function slotToHour(slot: number) {
   return `${hour.toString().padStart(2, "0")}:00`
 }
 
-export default function FlightLogsPage() {
+function FlightLogsPageContent() {
   const { pilotData, loading } = usePilotData()
   const searchParams = useSearchParams()
   const highlightedId = searchParams.get("assignment_id")
@@ -112,5 +112,13 @@ export default function FlightLogsPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function FlightLogsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#FDFDFD]" />}>
+      <FlightLogsPageContent />
+    </Suspense>
   )
 }

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,7 @@ const FormInput = ({ label, icon: Icon, ...props }: any) => (
   </div>
 );
 
-export default function RegisterPage() {
+function RegisterPageContent() {
   const searchParams = useSearchParams()
   const nextUrl = searchParams.get("next")
   const [loading, setLoading] = useState(false);
@@ -307,4 +307,12 @@ export default function RegisterPage() {
       </AnimatePresence>
     </div>
   );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-white" />}>
+      <RegisterPageContent />
+    </Suspense>
+  )
 }

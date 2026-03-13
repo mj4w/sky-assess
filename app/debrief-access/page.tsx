@@ -1,11 +1,11 @@
 "use client"
 
-import { useEffect } from "react"
+import { Suspense, useEffect } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 
-export default function DebriefAccessPage() {
+function DebriefAccessPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const debriefId = String(searchParams.get("debrief_id") || "").trim()
@@ -38,5 +38,13 @@ export default function DebriefAccessPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function DebriefAccessPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-50" />}>
+      <DebriefAccessPageContent />
+    </Suspense>
   )
 }

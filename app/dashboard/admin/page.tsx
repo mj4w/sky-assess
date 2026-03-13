@@ -315,7 +315,7 @@ export default function AdminPage() {
     <div className="min-h-screen bg-[#FDFDFD] p-6 lg:p-10">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="rounded-3xl border border-slate-200 bg-white shadow-xl overflow-hidden">
-          <div className="px-6 py-6 md:px-8 md:py-8 bg-gradient-to-r from-slate-900 via-blue-900 to-blue-800">
+          <div className="px-6 py-6 md:px-8 md:py-8 bg-linear-to-r from-slate-900 via-blue-900 to-blue-800">
             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-100">Admin Enrollment</p>
             <h1 className="mt-2 text-3xl md:text-4xl font-black tracking-tight text-white">Personnel & Roles Management</h1>
             <p className="mt-1 text-xs font-semibold text-blue-100/80">Add, edit, and remove instructors/students and manage staff roles.</p>
@@ -402,7 +402,7 @@ export default function AdminPage() {
                 <div className="px-4 py-3 border-b border-slate-200 bg-slate-50">
                   <h3 className="text-xs font-black uppercase tracking-widest text-slate-700">Instructor List</h3>
                 </div>
-                <div className="max-h-[420px] overflow-y-auto">
+                <div className="max-h-105 overflow-y-auto">
                   {loadingLists ? (
                     <p className="px-4 py-5 text-xs text-slate-500">Loading...</p>
                   ) : instructors.length === 0 ? (
@@ -448,7 +448,7 @@ export default function AdminPage() {
                 <div className="px-4 py-3 border-b border-slate-200 bg-slate-50">
                   <h3 className="text-xs font-black uppercase tracking-widest text-slate-700">Student List</h3>
                 </div>
-                <div className="max-h-[420px] overflow-y-auto">
+                <div className="max-h-105 overflow-y-auto">
                   {loadingLists ? (
                     <p className="px-4 py-5 text-xs text-slate-500">Loading...</p>
                   ) : students.length === 0 ? (
@@ -500,7 +500,7 @@ export default function AdminPage() {
                   <div className="px-3 py-2 border-b border-slate-200 bg-blue-50">
                     <p className="text-[11px] font-black uppercase tracking-wider text-blue-900">Admin Dashboard Access</p>
                   </div>
-                  <div className="max-h-[240px] overflow-y-auto">
+                  <div className="max-h-60 overflow-y-auto">
                     {loadingLists ? (
                       <p className="px-3 py-4 text-xs text-slate-500">Loading...</p>
                     ) : adminRoles.length === 0 ? (
@@ -520,7 +520,7 @@ export default function AdminPage() {
                   <div className="px-3 py-2 border-b border-slate-200 bg-amber-50">
                     <p className="text-[11px] font-black uppercase tracking-wider text-amber-800">FlightOps Dashboard Access</p>
                   </div>
-                  <div className="max-h-[240px] overflow-y-auto">
+                  <div className="max-h-60 overflow-y-auto">
                     {loadingLists ? (
                       <p className="px-3 py-4 text-xs text-slate-500">Loading...</p>
                     ) : flightOpsRoles.length === 0 ? (
