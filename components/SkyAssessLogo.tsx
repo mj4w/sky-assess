@@ -22,7 +22,7 @@ export default function SkyAssessLogo({
       {framed ? (
         <>
           <div className="absolute inset-0 rounded-[inherit] bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.28),transparent_48%)]" />
-          <div className="absolute inset-[5%] rounded-[1.25rem] border border-[#fca5a5]/55 bg-[linear-gradient(180deg,#eff6ff_0%,#dbeafe_46%,#bfdbfe_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]" />
+          <div className="absolute inset-[5%] rounded-4xl border border-[#fca5a5]/55 bg-[linear-gradient(180deg,#eff6ff_0%,#dbeafe_46%,#bfdbfe_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]" />
           <div className="absolute inset-x-[18%] top-[7%] h-[8%] rounded-full bg-red-400/35 blur-md" />
         </>
       ) : null}

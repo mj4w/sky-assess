@@ -98,7 +98,7 @@ function LoginPageContent() {
 
         // Student fallback
         if (!resolvedEmail) {
-          // console.log("⚠️ No Instructor match. Falling back to Student ID check...");
+          // console.log(" No Instructor match. Falling back to Student ID check...");
           for (const candidate of idCandidates) {
             const { data: studentRows, error: studentError } = await supabase
               .from("profiles")
@@ -212,6 +212,14 @@ function LoginPageContent() {
           animate={{ opacity: 1, scale: 1 }}
           className="w-full max-w-md space-y-8"
         >
+          <div className="lg:hidden flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <SkyAssessLogo className="h-16 w-16" />
+            <div className="space-y-1">
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">SkyAssess</p>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-900">WCC Flight Evaluation System</p>
+            </div>
+          </div>
+
           <div className="space-y-2">
             <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Flight Deck Access</h2>
             <p className="text-slate-500 text-sm">Sign in to continue to your training, evaluation, and operations workspace.</p>

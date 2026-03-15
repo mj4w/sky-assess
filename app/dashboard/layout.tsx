@@ -1,12 +1,11 @@
 "use client"
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { Bell, Settings, LogOut, Loader2, AlertTriangle, Sun, Moon } from "lucide-react"
+import { Plane, Bell, Settings, LogOut, Loader2, AlertTriangle, Sun, Moon, Menu } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase" //
 import { useAutoLogout } from "@/hooks/useAutoLogout" //
 import { DebriefCourseModal } from "@/components/DebriefCourseModal"
-import SkyAssessLogo from "@/components/SkyAssessLogo"
 
 interface AssignmentNotice {
   id: string
@@ -45,6 +44,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [idUpdateError, setIdUpdateError] = useState("")
   const [theme, setTheme] = useState<"light" | "dark">("light")
   const [showThemeMenu, setShowThemeMenu] = useState(false)
+  const [showMobileMenu, setShowMobileMenu] = useState(false)
   
   // Initialize your auto-logout hook (Default: 15 mins)
   useAutoLogout(15) 
@@ -192,6 +192,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     window.localStorage.setItem("skyassess-theme", nextTheme)
     setTheme(nextTheme)
     setShowThemeMenu(false)
+    setShowMobileMenu(false)
   }
 
   const unreadCount = useMemo(() => {
@@ -276,6 +277,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
 
     setShowNotifications(false)
+    setShowMobileMenu(false)
     if (target.startsWith("/dashboard/tasks")) {
       router.push(target)
       return
@@ -313,7 +315,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-screen w-full flex flex-col bg-[#FDFDFD] dark:bg-slate-950 font-sans">
-      <header className="h-16 shrink-0 flex items-center justify-between px-8 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-700 sticky top-0 z-30 shadow-sm shadow-slate-900/5">
+      <header className="h-16 shrink-0 flex items-center justify-between px-4 sm:px-6 lg:px-8 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-700 sticky top-0 z-30 shadow-sm shadow-slate-900/5">
         
         {/* Left: Branding */}
         <div className="flex items-center gap-4">
@@ -322,7 +324,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             className="flex items-center gap-2 group cursor-pointer select-none"
             title="Refresh Terminal"
           >
-            <SkyAssessLogo className="h-8 w-8 shrink-0 transition-transform group-hover:rotate-6" />
+            <div className="bg-blue-900 p-1.5 rounded-lg group-hover:rotate-12 transition-transform">
+              <Plane className="size-4 text-white -rotate-45" />
+            </div>
             <div className="flex flex-col">
               <h1 className="text-sm font-black italic uppercase tracking-tighter text-slate-900 dark:text-slate-100 leading-none">
                 SkyAssess
@@ -335,7 +339,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-3 sm:gap-6">
           <div className="hidden md:flex items-center gap-4 border-r border-slate-100 dark:border-slate-700 pr-6 mr-2 relative">
             <button
               onClick={() => setShowNotifications((prev) => !prev)}
@@ -405,11 +409,133 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
             )}
           </div>
+
+          <div className="relative md:hidden">
+            <button
+              type="button"
+              onClick={() => {
+                setShowMobileMenu((prev) => !prev)
+                setShowNotifications(false)
+                setShowThemeMenu(false)
+              }}
+              className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-300"
+              title="Menu"
+            >
+              <Menu size={18} />
+              {unreadCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 h-4 min-w-4 px-1 rounded-full bg-red-600 text-white text-[9px] font-black flex items-center justify-center">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+            {showMobileMenu && (
+              <div className="absolute right-0 top-12 w-72 max-w-[85vw] rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Quick Actions</p>
+                </div>
+                <div className="p-3 space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNotifications((prev) => !prev)
+                      setShowThemeMenu(false)
+                    }}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="inline-flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-100">
+                        <Bell size={16} />
+                        Notifications
+                      </div>
+                      {unreadCount > 0 ? (
+                        <span className="h-5 min-w-5 px-1 rounded-full bg-red-600 text-white text-[10px] font-black flex items-center justify-center">
+                          {unreadCount}
+                        </span>
+                      ) : null}
+                    </div>
+                  </button>
+
+                  {showNotifications && (
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                      <div className="max-h-72 overflow-y-auto bg-white dark:bg-slate-900">
+                        {assignmentNotices.length === 0 ? (
+                          <p className="px-3 py-4 text-xs text-slate-500">No notifications.</p>
+                        ) : (
+                          assignmentNotices.map((notice) => (
+                            <button
+                              key={notice.id}
+                              type="button"
+                              onClick={() => handleNotificationClick(notice.id)}
+                              className={`w-full text-left px-3 py-3 border-b border-slate-100 dark:border-slate-700 last:border-b-0 hover:bg-slate-50 dark:hover:bg-slate-800 ${
+                                notice.notificationRead ? "text-slate-400" : "text-slate-700 dark:text-slate-200"
+                              }`}
+                            >
+                              <p className="text-xs font-semibold">{notice.text}</p>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowThemeMenu((prev) => !prev)
+                        setShowNotifications(false)
+                      }}
+                      className="w-full px-3 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800"
+                    >
+                      <div className="inline-flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-100">
+                        <Settings size={16} />
+                        Appearance
+                      </div>
+                    </button>
+                    {showThemeMenu && (
+                      <div className="border-t border-slate-200 dark:border-slate-700 p-2 space-y-1 bg-white dark:bg-slate-900">
+                        <button
+                          type="button"
+                          onClick={() => applyTheme("light")}
+                          className={`w-full h-9 px-2 rounded-md text-left text-xs font-semibold inline-flex items-center gap-2 ${
+                            theme === "light" ? "bg-blue-50 text-blue-900" : "hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+                          }`}
+                        >
+                          <Sun size={14} /> Light mode
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => applyTheme("dark")}
+                          className={`w-full h-9 px-2 rounded-md text-left text-xs font-semibold inline-flex items-center gap-2 ${
+                            theme === "dark" ? "bg-blue-50 text-blue-900" : "hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+                          }`}
+                        >
+                          <Moon size={14} /> Night mode
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    disabled={isLoggingOut}
+                    className="w-full rounded-xl bg-red-50 px-3 py-3 text-left text-red-600 hover:bg-red-600 hover:text-white transition-colors disabled:opacity-50"
+                  >
+                    <span className="inline-flex items-center gap-2 text-sm font-bold">
+                      {isLoggingOut ? <Loader2 size={16} className="animate-spin" /> : <LogOut size={16} />}
+                      {isLoggingOut ? "Signing out..." : "Sign Out"}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
           
           <button 
             onClick={handleLogout}
             disabled={isLoggingOut}
-            className="flex items-center gap-2 px-4 py-2 rounded-full bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition-all group disabled:opacity-50"
+            className="hidden md:flex items-center gap-2 px-4 py-2 rounded-full bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition-all group disabled:opacity-50"
           >
             {isLoggingOut ? (
               <Loader2 size={14} className="animate-spin" />

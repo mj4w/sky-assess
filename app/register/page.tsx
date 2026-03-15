@@ -11,6 +11,7 @@ import DataPrivacyGate from "@/components/data-privacy-gate";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import SkyAssessLogo from '@/components/SkyAssessLogo';
+import ForceLightMode from '@/components/ForceLightMode';
 
 // --- MINIMALIST REUSABLE INPUT ---
 const FormInput = ({ label, icon: Icon, ...props }: any) => (
@@ -219,6 +220,14 @@ function RegisterPageContent() {
           animate={{ opacity: 1, x: 0 }}
           className="w-full max-w-md space-y-8 py-8"
         >
+          <div className="lg:hidden flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <SkyAssessLogo className="h-16 w-16" />
+            <div className="space-y-1">
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">SkyAssess</p>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-900">Flight Training Evaluation System</p>
+            </div>
+          </div>
+
           <div className="space-y-2">
             <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Account Registration</h2>
             <p className="text-slate-500 text-sm">Register your personnel credentials to activate your SkyAssess access.</p>
