@@ -17,6 +17,7 @@ import {
 import { motion } from "framer-motion"
 import { supabase } from "@/lib/supabase"
 import InstructorSignaturePad from "./InstructorSignaturePad"
+import SkyAssessLogo from "@/components/SkyAssessLogo"
 
 const GRADES = ["S+", "S", "S-", "NP"]
 
@@ -303,7 +304,7 @@ export default function SharedCourseGradingForm({
       <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} className="relative w-full max-w-5xl bg-white h-full shadow-2xl flex flex-col overflow-hidden">
         <header className="p-6 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-20">
           <div className="flex items-center gap-4">
-            <div className={`${accent.iconBg} p-2 rounded-lg text-white`}><Plane className="size-5 -rotate-45" /></div>
+            <SkyAssessLogo className="h-10 w-10" />
             <div>
               <h2 className="text-xl font-black italic uppercase text-slate-900">{courseTitle}</h2>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{courseSubtitle}</p>
