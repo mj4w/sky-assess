@@ -6,10 +6,12 @@ import { supabase } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { User, Lock, Mail, Loader2, Plane, Eye, EyeOff, ArrowLeft, ShieldCheck, AlertCircle } from "lucide-react";
+import { User, Lock, Mail, Loader2, Eye, EyeOff, ArrowLeft, ShieldCheck, AlertCircle } from "lucide-react";
 import DataPrivacyGate from "@/components/data-privacy-gate";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import SkyAssessLogo from '@/components/SkyAssessLogo';
+import ForceLightMode from '@/components/ForceLightMode';
 
 // --- MINIMALIST REUSABLE INPUT ---
 const FormInput = ({ label, icon: Icon, ...props }: any) => (
@@ -167,6 +169,7 @@ function RegisterPageContent() {
 
   return (
     <div className="min-h-screen w-full flex bg-white font-sans overflow-hidden">
+      <ForceLightMode />
       
       {/* LEFT SIDE: BANNER (Hidden on mobile) */}
       <div className="hidden lg:flex lg:w-5/12 bg-[#1E3A8A] relative items-center justify-center p-12 overflow-hidden border-r border-slate-100">
@@ -179,16 +182,23 @@ function RegisterPageContent() {
             <ArrowLeft size={14} /> Back to Login
           </Link>
           
-          <div className="space-y-4">
-            <div className="bg-red-600 w-12 h-12 flex items-center justify-center rounded-lg shadow-lg mb-6">
-              <Plane className="text-white size-6 -rotate-45" />
+          <div className="space-y-6">
+            <div className="max-w-sm space-y-4">
+              <div className="flex flex-col items-start gap-4 lg:flex-row lg:items-center lg:gap-5">
+                <SkyAssessLogo className="h-28 w-28 lg:h-32 lg:w-32" />
+                <div className="space-y-2">
+                  <p className="text-[11px] font-black uppercase tracking-[0.34em] text-blue-100/75">SkyAssess</p>
+                  <p className="text-sm font-black uppercase tracking-[0.24em] text-red-300">Flight Training Evaluation System</p>
+                  <div className="h-px w-24 bg-linear-to-r from-white/70 via-red-300/70 to-transparent lg:w-40" />
+                </div>
+              </div>
             </div>
-            <h1 className="text-4xl font-black text-white tracking-tight leading-tight uppercase">
-              Begin Your <br />
-              <span className="text-red-500">Flight Journey.</span>
+            <h1 className="text-4xl font-black text-white tracking-tight leading-[0.95] uppercase lg:text-5xl">
+              Establish Your <br />
+              <span className="text-red-500">Training Profile.</span>
             </h1>
-            <p className="text-blue-100/60 text-sm font-medium max-w-sm leading-relaxed">
-              Create your official account to access flight assessments, performance tracking, and training records.
+            <p className="text-blue-100/70 text-sm font-medium max-w-md leading-relaxed">
+              Create your official SkyAssess account to access flight evaluations, debriefing records, and training performance tools.
             </p>
           </div>
 
@@ -210,9 +220,17 @@ function RegisterPageContent() {
           animate={{ opacity: 1, x: 0 }}
           className="w-full max-w-md space-y-8 py-8"
         >
+          <div className="lg:hidden flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <SkyAssessLogo className="h-16 w-16" />
+            <div className="space-y-1">
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">SkyAssess</p>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-900">Flight Training Evaluation System</p>
+            </div>
+          </div>
+
           <div className="space-y-2">
-            <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Personnel Enlistment</h2>
-            <p className="text-slate-500 text-sm">Register your credentials for WCC SkyAssess.</p>
+            <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Account Registration</h2>
+            <p className="text-slate-500 text-sm">Register your personnel credentials to activate your SkyAssess access.</p>
           </div>
           
           {error && (
