@@ -5,7 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { 
   LineChart, ClipboardList, 
   MessageSquare, UserCircle, ClipboardCheck,
-  ArrowRight, Plane, ShieldAlert
+  ArrowRight, ShieldAlert
 } from "lucide-react"
 import Link from "next/link"
 import { usePilotData } from "@/hooks/usePilotData"
@@ -15,6 +15,7 @@ import { DebriefCourseModal } from "@/components/DebriefCourseModal"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import InstructorDirectoryPage from "@/app/dashboard/profiles/page"
+import SkyAssessLogo from "@/components/SkyAssessLogo"
 
 type AssignmentUnreadRow = {
   id: string
@@ -206,7 +207,7 @@ export default function DashboardPage() {
 
   if (loading) return (
     <div className="h-screen w-full flex flex-col items-center justify-center bg-white dark:bg-slate-950">
-      <Plane className="h-8 w-8 text-blue-900 animate-pulse mb-4" />
+      <SkyAssessLogo className="h-12 w-12 mb-4 animate-pulse" />
       <p className="font-bold uppercase text-[10px] tracking-[0.4em] text-slate-400">Initializing Terminal</p>
     </div>
   )
@@ -221,7 +222,7 @@ export default function DashboardPage() {
   if (isAdmin) {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-white dark:bg-slate-950">
-        <Plane className="h-8 w-8 text-blue-900 animate-pulse mb-4" />
+        <SkyAssessLogo className="h-12 w-12 mb-4 animate-pulse" />
         <p className="font-bold uppercase text-[10px] tracking-[0.4em] text-slate-400">Redirecting...</p>
       </div>
     )

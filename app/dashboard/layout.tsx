@@ -1,11 +1,12 @@
 "use client"
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { Plane, Bell, Settings, LogOut, Loader2, AlertTriangle, Sun, Moon, Menu } from "lucide-react"
+import { Bell, Settings, LogOut, Loader2, AlertTriangle, Sun, Moon, Menu } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase" //
 import { useAutoLogout } from "@/hooks/useAutoLogout" //
 import { DebriefCourseModal } from "@/components/DebriefCourseModal"
+import SkyAssessLogo from "@/components/SkyAssessLogo"
 
 interface AssignmentNotice {
   id: string
@@ -324,9 +325,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             className="flex items-center gap-2 group cursor-pointer select-none"
             title="Refresh Terminal"
           >
-            <div className="bg-blue-900 p-1.5 rounded-lg group-hover:rotate-12 transition-transform">
-              <Plane className="size-4 text-white -rotate-45" />
-            </div>
+            <SkyAssessLogo className="h-8 w-8 shrink-0 transition-transform group-hover:rotate-6" />
             <div className="flex flex-col">
               <h1 className="text-sm font-black italic uppercase tracking-tighter text-slate-900 dark:text-slate-100 leading-none">
                 SkyAssess
