@@ -3,12 +3,11 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
-import { 
+import {
   LayoutDashboard, 
   ClipboardCheck, 
   BarChart3, 
   MessageSquare,
-  Plane,
   LogOut,
   Settings,
   Loader2,
@@ -17,6 +16,7 @@ import {
   FileText,
   Bell
 } from "lucide-react"
+import SkyAssessLogo from "@/components/SkyAssessLogo"
 
 import {
   Sidebar,
@@ -62,9 +62,7 @@ export function AppSidebar({ userRole = 'student', ...props }: { userRole?: 'stu
   return (
     <Sidebar collapsible="icon" className="border-r-4 border-black" {...props}>
       <SidebarHeader className="h-18 bg-[#FFD700] border-b-4 border-black p-4 flex flex-row items-center gap-3">
-        <div className="flex aspect-square size-10 items-center justify-center rounded-lg bg-red-600 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-          <Plane className="text-white size-5" />
-        </div>
+        <SkyAssessLogo className="h-10 w-10 shrink-0" />
         <div className="flex flex-col justify-center">
           <span className="font-black text-black italic text-base tracking-tighter leading-none">SKYASSESS</span>
           <span className="text-[9px] font-bold text-red-600 uppercase tracking-tighter">WCC AERONAUTICAL</span>

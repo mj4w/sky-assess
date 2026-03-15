@@ -1,9 +1,10 @@
 "use client"
 
 import { FormEvent, useEffect, useMemo, useState } from "react"
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, AlertTriangle, Plane, Plus, X } from "lucide-react"
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, AlertTriangle, Plus, X } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
+import SkyAssessLogo from "@/components/SkyAssessLogo"
 
 const flightTypeOptions = [
   { code: "PS", label: "Pre-Solo Simulator", colorClass: "bg-violet-100 border-violet-300" },
@@ -615,9 +616,7 @@ export default function DispatchCalendar() {
       <div className="max-w-425 mx-auto space-y-4">
         <div className="bg-white border border-slate-200 rounded-2xl p-4 lg:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="bg-blue-900 p-2 rounded-lg">
-              <Plane className="size-4 text-white -rotate-45" />
-            </div>
+            <SkyAssessLogo className="h-9 w-9 shrink-0" />
             <div>
               <h1 className="text-xl font-black uppercase tracking-tight">Flight Ops Board</h1>
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Operations Dispatch</p>

@@ -4,8 +4,9 @@ import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowRight, Plane, ShieldCheck, Lock } from "lucide-react";
+import { ArrowRight, ShieldCheck, Lock } from "lucide-react";
 import { motion } from 'framer-motion';
+import SkyAssessLogo from "./SkyAssessLogo";
 
 interface DataPrivacyGateProps {
   onAccept: () => void | Promise<void>
@@ -93,7 +94,7 @@ export default function DataPrivacyGate({ onAccept, loading = false }: DataPriva
             </Button>
             
             <div className="flex items-center justify-center gap-2 opacity-40">
-              <Plane className="h-3 w-3 -rotate-45 text-slate-900" />
+              <SkyAssessLogo className="h-4 w-4" />
               <span className="text-[10px] font-black text-slate-900 uppercase tracking-[0.3em]">
                 SkyAssess
               </span>

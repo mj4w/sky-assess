@@ -7,8 +7,10 @@ import { supabase } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { User, Lock, Plane, ShieldCheck,Loader2, AlertCircle, CheckCircle2, Eye, EyeOff, ArrowRight } from "lucide-react";
+import ForceLightMode from "@/components/ForceLightMode";
+import { User, Lock,ShieldCheck,Loader2, AlertCircle, CheckCircle2, Eye, EyeOff, ArrowRight } from "lucide-react";
 import Link from "next/link";
+import SkyAssessLogo from '@/components/SkyAssessLogo';
 
 const FormInput = ({ label, icon: Icon, rightElement, ...props }: any) => (
   <div className="space-y-1.5">
@@ -156,6 +158,7 @@ function LoginPageContent() {
 
   return (
     <div className="min-h-screen w-full flex bg-white font-sans overflow-hidden">
+      <ForceLightMode />
       
       {/* LEFT SIDE: BANNER (Hidden on mobile) */}
       <div className="hidden lg:flex lg:w-1/2 bg-[#1E3A8A] relative items-center justify-center p-12 overflow-hidden">
@@ -163,28 +166,34 @@ function LoginPageContent() {
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32" />
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-red-600/10 rounded-full -ml-48 -mb-48" />
         
-        <div className="relative z-10 space-y-6 text-center lg:text-left">
+        <div className="relative z-10 space-y-8 text-center lg:text-left">
           <motion.div 
             initial={{ opacity: 0, x: -20 }} 
             animate={{ opacity: 1, x: 0 }}
-            className="inline-flex items-center gap-2 bg-red-600 px-4 py-2 rounded-lg shadow-lg"
+            className="max-w-md space-y-4"
           >
-            <Plane className="text-white size-6" />
-            <span className="text-white font-bold tracking-tighter italic">SKYASSESS</span>
+            <div className="flex flex-col items-center gap-4 lg:flex-row lg:items-center lg:gap-5">
+              <SkyAssessLogo className="h-28 w-28 lg:h-32 lg:w-32" />
+              <div className="space-y-2">
+                <p className="text-[11px] font-black uppercase tracking-[0.34em] text-blue-100/75">SkyAssess</p>
+                <p className="text-sm font-black uppercase tracking-[0.24em] text-red-300">WCC Flight Evaluation System</p>
+                <div className="mx-auto h-px w-24 bg-linear-to-r from-transparent via-white/60 to-transparent lg:mx-0 lg:w-40" />
+              </div>
+            </div>
           </motion.div>
           
           <motion.div 
             initial={{ opacity: 0, y: 20 }} 
             animate={{ opacity: 1, y: 0 }} 
             transition={{ delay: 0.2 }}
-            className="space-y-2"
+            className="max-w-xl space-y-3"
           >
-            <h1 className="text-5xl font-black text-white tracking-tight leading-tight">
-              ADVANCING <br /> 
-              <span className="text-red-500">AVIATION</span> TRAINING.
+            <h1 className="text-5xl font-black text-white tracking-tight leading-[0.95] lg:text-6xl">
+              ELEVATING <br /> 
+              <span className="text-red-500">FLIGHT</span> TRAINING.
             </h1>
-            <p className="text-blue-100/70 text-lg font-medium max-w-md">
-              The premier aeronautical assessment platform for WCC Aeronautical and Technological College.
+            <p className="text-blue-100/72 text-lg font-medium max-w-lg leading-relaxed">
+              Secure access to debriefings, performance records, and operational assessments for WCC Aeronautical and Technological College.
             </p>
           </motion.div>
         </div>
@@ -204,8 +213,8 @@ function LoginPageContent() {
           className="w-full max-w-md space-y-8"
         >
           <div className="space-y-2">
-            <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Personnel Login</h2>
-            <p className="text-slate-500 text-sm">Enter your credentials to access the flight operations deck.</p>
+            <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Flight Deck Access</h2>
+            <p className="text-slate-500 text-sm">Sign in to continue to your training, evaluation, and operations workspace.</p>
           </div>
 
           <AnimatePresence mode="wait">
