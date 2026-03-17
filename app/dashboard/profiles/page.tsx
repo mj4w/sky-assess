@@ -30,7 +30,7 @@ interface StudentProfileRow {
   email: string | null
 }
 
-interface PplDebriefRow {
+interface CourseDebriefRow {
   assignment_id: string | null
 }
 
@@ -169,7 +169,7 @@ export default function InstructorDirectoryPage() {
 
       if (assignmentIds.length > 0 || studentCandidates.length > 0) {
         const debriefQuery = supabase
-          .from("ppl_debriefs")
+          .from("course_debriefs")
           .select("assignment_id, student_id, op_date")
           .order("created_at", { ascending: false })
           .limit(500)
@@ -178,7 +178,7 @@ export default function InstructorDirectoryPage() {
           ? await debriefQuery.in("assignment_id", assignmentIds)
           : await debriefQuery.in("student_id", studentCandidates)
 
-        ;(debriefRows as PplDebriefRow[] | null)?.forEach((row) => {
+        ;(debriefRows as CourseDebriefRow[] | null)?.forEach((row) => {
           const assignmentId = String(row.assignment_id || "").trim()
           if (assignmentId) completedAssignmentIds.add(assignmentId)
         })
