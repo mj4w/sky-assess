@@ -32,6 +32,8 @@ interface StudentProfileRow {
 
 interface CourseDebriefRow {
   assignment_id: string | null
+  student_id: string | null
+  op_date: string | null
 }
 
 interface FlightDayGroup {
@@ -141,6 +143,7 @@ export default function InstructorDirectoryPage() {
       const nameMap: Record<string, string> = {}
       const emailMap: Record<string, string> = {}
       const completedAssignmentIds = new Set<string>()
+      const completedStudentDateKeys = new Set<string>()
 
       if (studentCandidates.length > 0) {
         const { data: studentRows } = await supabase
@@ -181,6 +184,10 @@ export default function InstructorDirectoryPage() {
         ;(debriefRows as CourseDebriefRow[] | null)?.forEach((row) => {
           const assignmentId = String(row.assignment_id || "").trim()
           if (assignmentId) completedAssignmentIds.add(assignmentId)
+
+          const studentId = String(row.student_id || "").trim().toLowerCase()
+          const opDate = String(row.op_date || "").trim()
+          if (studentId && opDate) completedStudentDateKeys.add(`${studentId}__${opDate}`)
         })
       }
 
@@ -203,7 +210,8 @@ export default function InstructorDirectoryPage() {
         const end = start + span
         const lessonNo = String(row.lesson_no || "").trim()
         const assignmentId = String(row.id || "")
-        const isDebriefCompleted = completedAssignmentIds.has(assignmentId)
+        const studentDateKey = `${studentIdRaw.toLowerCase()}__${date}`
+        const isDebriefCompleted = completedAssignmentIds.has(assignmentId) || completedStudentDateKeys.has(studentDateKey)
         const nextValue = {
           assignmentId,
           studentId: studentIdRaw,
@@ -495,7 +503,7 @@ export default function InstructorDirectoryPage() {
                             disabled={student.debriefCompleted || !student.readyForDebrief || openingDebriefId === student.assignmentId}
                             className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-[10px] font-black uppercase tracking-wider disabled:cursor-not-allowed ${
                               student.debriefCompleted
-                                ? "bg-emerald-600 text-white disabled:opacity-100"
+                                ? "border border-emerald-200 bg-emerald-50 text-emerald-700 disabled:opacity-100 disabled:pointer-events-none"
                                 : "bg-blue-900 hover:bg-blue-800 text-white disabled:opacity-40"
                             }`}
                           >

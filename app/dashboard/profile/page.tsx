@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase"
 
 interface DebriefRow {
   id: string
+  course_code: string
   lesson_no: string | null
   op_date: string
   rpc: string | null
@@ -70,8 +71,8 @@ export default function StudentProfilePage() {
 
       const [debriefResponse, assignmentResponse] = await Promise.all([
         supabase
-          .from("ppl_debriefs")
-          .select("id, lesson_no, op_date, rpc, instructor_name_snapshot, student_signed_at")
+          .from("course_debriefs")
+          .select("id, course_code, lesson_no, op_date, rpc, instructor_name_snapshot, student_signed_at")
           .in("student_id", studentCandidates)
           .order("op_date", { ascending: false }),
         supabase
@@ -88,7 +89,7 @@ export default function StudentProfilePage() {
       const debriefIds = [...new Set(debriefRows.map((row) => row.id).filter(Boolean))]
       if (debriefIds.length > 0) {
         const { data: itemsData } = await supabase
-          .from("ppl_debrief_items")
+          .from("course_debrief_items")
           .select("debrief_id, item_name, grade, remark")
           .in("debrief_id", debriefIds)
         setDebriefItems((itemsData || []) as DebriefItemRow[])
@@ -206,7 +207,7 @@ export default function StudentProfilePage() {
                   ) : (
                     debriefs.map((row) => (
                       <div key={row.id} className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
-                        <p className="text-sm font-bold text-slate-800">Lesson {row.lesson_no || "N/A"} - {row.rpc || "N/A"}</p>
+                        <p className="text-sm font-bold text-slate-800">{row.course_code} · Lesson {row.lesson_no || "N/A"} - {row.rpc || "N/A"}</p>
                         <p className="text-xs text-slate-600">{toDateLabel(row.op_date)} · {row.instructor_name_snapshot || "Instructor"}</p>
                       </div>
                     ))
@@ -291,7 +292,7 @@ export default function StudentProfilePage() {
               </div>
               <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-emerald-700">
                 <CheckCircle2 size={14} />
-                Student signature acknowledgement is tracked from PPL debrief records.
+                Student signature acknowledgement is tracked from submitted course debrief records.
               </div>
             </div>
           </div>
