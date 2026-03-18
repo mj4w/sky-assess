@@ -217,16 +217,21 @@ export default function StudentPPLDebriefReview({
     const contentWidth = pageWidth - margin * 2
     const fieldGap = 20
     const fieldWidth = (contentWidth - fieldGap) / 2
-    const fieldValueOffset = 74
     const drawFieldPair = (left: [string, string], right: [string, string]) => {
       ensureSpace(18)
       pdf.setFontSize(10)
       pdf.setFont("helvetica", "bold")
-      pdf.text(`${left[0]}:`, margin, y)
-      pdf.text(`${right[0]}:`, margin + fieldWidth + fieldGap, y)
+      const leftLabel = `${left[0]}:`
+      const rightLabel = `${right[0]}:`
+      const leftX = margin
+      const rightX = margin + fieldWidth + fieldGap
+      pdf.text(leftLabel, leftX, y)
+      pdf.text(rightLabel, rightX, y)
+      const leftValueX = leftX + pdf.getTextWidth(leftLabel) + 10
+      const rightValueX = rightX + pdf.getTextWidth(rightLabel) + 10
       pdf.setFont("helvetica", "normal")
-      pdf.text(String(left[1] || "N/A"), margin + fieldValueOffset, y, { maxWidth: fieldWidth - fieldValueOffset })
-      pdf.text(String(right[1] || "N/A"), margin + fieldWidth + fieldGap + fieldValueOffset, y, { maxWidth: fieldWidth - fieldValueOffset })
+      pdf.text(String(left[1] || "N/A"), leftValueX, y, { maxWidth: Math.max(20, leftX + fieldWidth - leftValueX) })
+      pdf.text(String(right[1] || "N/A"), rightValueX, y, { maxWidth: Math.max(20, rightX + fieldWidth - rightValueX) })
       y += 15
     }
 
