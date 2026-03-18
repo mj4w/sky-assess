@@ -44,6 +44,12 @@ interface StudentDebriefRecord {
   notify: boolean | null
 }
 
+interface CourseDebriefLookupRow {
+  assignment_id: string | null
+  student_id: string | null
+  op_date: string | null
+}
+
 const courseMeta: Record<string, { code: string; name: string }> = {
   ppl: { code: "PPL", name: "Private Pilot License" },
   cpl: { code: "CPL", name: "Commercial Pilot License" },
@@ -156,6 +162,7 @@ function PPLDebriefPageContent() {
       const studentIds = [...new Set((data || []).map((row) => String(row.student_id || "").trim()).filter(Boolean))]
       const studentCandidates = [...new Set(studentIds.flatMap((value) => [value, value.toLowerCase(), value.toUpperCase()]))]
       const completedAssignmentIds = new Set<string>()
+      const completedStudentDateKeys = new Set<string>()
 
       if (assignmentIds.length > 0 || studentCandidates.length > 0) {
         const debriefQuery = supabase
@@ -169,9 +176,13 @@ function PPLDebriefPageContent() {
           ? await debriefQuery.in("assignment_id", assignmentIds)
           : await debriefQuery.in("student_id", studentCandidates)
 
-        ;(debriefRows || []).forEach((row) => {
+        ;(debriefRows as CourseDebriefLookupRow[] | null)?.forEach((row) => {
           const assignment = String(row.assignment_id || "").trim()
           if (assignment) completedAssignmentIds.add(assignment)
+
+          const studentId = String(row.student_id || "").trim().toLowerCase()
+          const opDate = String(row.op_date || "").trim()
+          if (studentId && opDate) completedStudentDateKeys.add(`${studentId}__${opDate}`)
         })
       }
 
@@ -182,12 +193,13 @@ function PPLDebriefPageContent() {
         const assignmentId = String(row.id)
         const studentId = String(row.student_id || "")
         const opDate = String(row.op_date || todayDate)
+        const studentDateKey = `${studentId.trim().toLowerCase()}__${opDate}`
         return {
           id: assignmentId,
           aircraftType: String(row.aircraft_type || ""),
           aircraftRegistry: String(row.aircraft_registry || ""),
           lessonNo: String(row.lesson_no || ""),
-          debriefCompleted: completedAssignmentIds.has(assignmentId),
+          debriefCompleted: completedAssignmentIds.has(assignmentId) || completedStudentDateKeys.has(studentDateKey),
           opDate,
           slotSpan: span,
           timeLabel: `${slotToHour(start)} - ${slotToHour(end)}`,
@@ -339,6 +351,7 @@ function PPLDebriefPageContent() {
               instructorName={pilotData?.full_name || pilotData?.instructor_id || pilotData?.email || "Instructor"}
               role={pilotData?.role || "student"}
               initialSession={{
+                assignmentId: selectedSession.id,
                 lessonNo: selectedSession.lessonNo,
                 date: selectedSession.opDate,
                 rpc: selectedSession.aircraftRegistry,
@@ -357,6 +370,7 @@ function PPLDebriefPageContent() {
               instructorName={pilotData?.full_name || pilotData?.instructor_id || pilotData?.email || "Instructor"}
               role={pilotData?.role || "student"}
               initialSession={{
+                assignmentId: selectedSession.id,
                 lessonNo: selectedSession.lessonNo,
                 date: selectedSession.opDate,
                 rpc: selectedSession.aircraftRegistry,
