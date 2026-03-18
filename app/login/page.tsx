@@ -259,7 +259,7 @@ function LoginPageContent() {
               <div className="flex justify-between items-center">
                 <Label className="font-semibold uppercase text-[10px] tracking-widest text-slate-500">Password</Label>
                 <Link href="/forgot-password" title="Forgot Password" className="text-[10px] font-bold text-blue-900 uppercase hover:text-red-600 transition-colors">
-                  Forgot Secret?
+                  Forgot Password?
                 </Link>
               </div>
               <div className="relative group">

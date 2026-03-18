@@ -92,12 +92,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       const idCandidates = [...new Set([idValue, idValue.toUpperCase(), idValue.toLowerCase()])]
       setAssignmentIdCandidates(idCandidates)
 
-      const { data, error } = await supabase
+      const assignmentsQuery = supabase
         .from("flight_ops_assignments")
         .select("id, op_date, aircraft_type, aircraft_registry, slot_index, slot_span, lesson_no, notification_read_student, notification_read_instructor")
-        .eq("op_date", toDateInput(new Date()))
         .in(idColumn, idCandidates)
+        .order("op_date", { ascending: false })
         .order("slot_index", { ascending: true })
+
+      const { data, error } = role === "student"
+        ? await assignmentsQuery
+        : await assignmentsQuery.eq("op_date", toDateInput(new Date()))
 
       if (error || !data) {
         setAssignmentNotices([])
@@ -116,7 +120,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         const end = start + span
         const message =
           idColumn === "student_id"
-            ? `Assigned new flight schedule: ${row.aircraft_type} ${row.aircraft_registry} (${slotToHour(start)}-${slotToHour(end)})`
+            ? `Assigned flight schedule for ${row.op_date}: ${row.aircraft_type} ${row.aircraft_registry} (${slotToHour(start)}-${slotToHour(end)})`
             : `Ready for debriefing: ${row.aircraft_type} ${row.aircraft_registry} (${slotToHour(start)}-${slotToHour(end)})`
 
         return {

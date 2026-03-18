@@ -1,7 +1,7 @@
 "use client"
 
 import { FormEvent, useEffect, useMemo, useState } from "react"
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, AlertTriangle, Plus, X } from "lucide-react"
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, AlertTriangle, Plus, Pencil, X } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import SkyAssessLogo from "@/components/SkyAssessLogo"
@@ -23,11 +23,13 @@ const flightTypeOptions = [
 type SlotType = (typeof flightTypeOptions)[number]["code"]
 
 interface Booking {
+  id?: string
   start: number
   span: number
   studentId: string
   instructorId: string
   type: SlotType
+  lessonNo?: string | null
 }
 
 interface AircraftRow {
@@ -47,6 +49,7 @@ interface CrewOption {
 }
 
 interface CreateModalState {
+  assignmentId?: string
   fleetType: string
   registry: string
   slotIndex: number
@@ -96,7 +99,7 @@ const flightSchedule: FleetGroup[] = [
     ],
   },
   {
-    type: "P-MENTO",
+    type: "P-MENTOR",
     rows: [
       { registry: "RP-C2381" },
       { registry: "RP-C2382" },
@@ -155,11 +158,56 @@ function canPlaceRange(bookings: Booking[], start: number, end: number) {
   return true
 }
 
+function normalizeId(value: string) {
+  return String(value || "").trim().toLowerCase()
+}
+
 function getRangeText(startIndex: number, span: number) {
   const safeStart = Math.max(0, Math.min(timeSlots.length - 1, startIndex))
   const safeEnd = Math.max(0, Math.min(timeSlots.length - 1, safeStart + span - 1))
   if (safeStart === safeEnd) return timeSlots[safeStart]
   return `${timeSlots[safeStart]} to ${timeSlots[safeEnd]}`
+}
+
+function parseFlightHours(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number.parseFloat(value)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+  return 0
+}
+
+async function adjustStudentFlightHours(deltas: Record<string, number>) {
+  const normalizedEntries = Object.entries(deltas)
+    .map(([studentId, delta]) => [normalizeId(studentId), Number(delta) || 0] as const)
+    .filter(([studentId, delta]) => studentId && delta !== 0)
+
+  if (normalizedEntries.length === 0) return
+
+  await Promise.all(
+    normalizedEntries.map(async ([studentId, delta]) => {
+      const { data: profileRows, error: profileLookupError } = await supabase
+        .from("profiles")
+        .select("id, flight_hours")
+        .ilike("student_id", studentId)
+        .limit(1)
+
+      if (profileLookupError) throw profileLookupError
+
+      const profileRow = profileRows?.[0]
+      if (!profileRow?.id) return
+
+      const currentHours = parseFlightHours(profileRow.flight_hours)
+      const nextHours = Math.max(0, currentHours + delta)
+      const { error: profileUpdateError } = await supabase
+        .from("profiles")
+        .update({ flight_hours: nextHours })
+        .eq("id", String(profileRow.id))
+
+      if (profileUpdateError) throw profileUpdateError
+    })
+  )
 }
 
 export default function DispatchCalendar() {
@@ -181,6 +229,7 @@ export default function DispatchCalendar() {
   const [customWarning, setCustomWarning] = useState("")
   const [savingBooking, setSavingBooking] = useState(false)
   const [modalError, setModalError] = useState<string | null>(null)
+  const [actionNotice, setActionNotice] = useState<{ type: "success" | "error"; message: string } | null>(null)
   const [checkingAccess, setCheckingAccess] = useState(true)
   const [loadingDayData, setLoadingDayData] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -262,7 +311,7 @@ export default function DispatchCalendar() {
       const [assignmentsResponse, warningsResponse] = await Promise.all([
         supabase
           .from("flight_ops_assignments")
-          .select("aircraft_registry, slot_index, slot_span, flight_type, student_id, instructor_id")
+          .select("id, aircraft_registry, slot_index, slot_span, flight_type, student_id, instructor_id, lesson_no")
           .eq("op_date", dateValue),
         supabase
           .from("flight_ops_day_warnings")
@@ -277,11 +326,13 @@ export default function DispatchCalendar() {
           const registry = row.aircraft_registry as string
           if (!grouped[registry]) grouped[registry] = []
           grouped[registry].push({
+            id: String(row.id || ""),
             start: Number(row.slot_index) || 0,
             span: Number(row.slot_span) || 1,
             studentId: (row.student_id as string) || "",
             instructorId: (row.instructor_id as string) || "",
             type: flightType,
+            lessonNo: row.lesson_no == null ? null : String(row.lesson_no),
           })
         }
         Object.keys(grouped).forEach((registry) => {
@@ -311,6 +362,25 @@ export default function DispatchCalendar() {
     setNotifyStudentByEmail(true)
     setNotifyInstructorByEmail(true)
     setModalError(null)
+    setActionNotice(null)
+  }
+
+  const openEditModal = (fleetType: string, registry: string, booking: Booking) => {
+    if (booking.lessonNo) return
+    setCreateModal({
+      assignmentId: booking.id,
+      fleetType,
+      registry,
+      slotIndex: booking.start,
+      slotSpan: booking.span,
+    })
+    setSelectedStudentId(booking.studentId)
+    setSelectedInstructorId(booking.instructorId)
+    setSelectedType(booking.type)
+    setNotifyStudentByEmail(false)
+    setNotifyInstructorByEmail(false)
+    setModalError(null)
+    setActionNotice(null)
   }
 
   const closeCreateModal = () => {
@@ -333,6 +403,47 @@ export default function DispatchCalendar() {
     setModalError(null)
   }
 
+  const deleteAssignment = async () => {
+    if (!createModal?.assignmentId || savingBooking) return
+    const lockedBooking = (assignmentsByRegistry[createModal.registry] || []).find((booking) => booking.id === createModal.assignmentId)
+    if (lockedBooking?.lessonNo) {
+      setModalError("This assignment is locked because a lesson number has already been submitted.")
+      return
+    }
+    setSavingBooking(true)
+    setModalError(null)
+    setActionNotice(null)
+    const affectedStudentId = lockedBooking?.studentId || ""
+
+    const { error } = await supabase
+      .from("flight_ops_assignments")
+      .delete()
+      .eq("id", createModal.assignmentId)
+
+    if (error) {
+      setModalError(error.message)
+      setSavingBooking(false)
+      return
+    }
+
+    if (affectedStudentId) {
+      try {
+        await adjustStudentFlightHours({ [affectedStudentId]: -(lockedBooking?.span || 0) })
+      } catch (syncError) {
+        setModalError(syncError instanceof Error ? syncError.message : "Failed to sync student flight hours.")
+        setSavingBooking(false)
+        return
+      }
+    }
+
+    setAssignmentsByRegistry((prev) => ({
+      ...prev,
+      [createModal.registry]: (prev[createModal.registry] || []).filter((booking) => booking.id !== createModal.assignmentId),
+    }))
+    setActionNotice({ type: "success", message: "Flight assignment deleted successfully." })
+    closeCreateModal()
+  }
+
   const submitCreateBooking = async (event: FormEvent) => {
     event.preventDefault()
     if (!createModal || savingBooking) return
@@ -348,7 +459,17 @@ export default function DispatchCalendar() {
     const student = studentOptions.find((option) => option.id === selectedStudentId)
     const instructor = instructorOptions.find((option) => option.id === selectedInstructorId)
 
-    const existingBookings = assignmentsByRegistry[createModal.registry] || []
+    const existingBookings = (assignmentsByRegistry[createModal.registry] || []).filter(
+      (booking) => booking.id !== createModal.assignmentId
+    )
+    const currentBooking = createModal.assignmentId
+      ? (assignmentsByRegistry[createModal.registry] || []).find((booking) => booking.id === createModal.assignmentId)
+      : null
+    if (currentBooking?.lessonNo) {
+      setModalError("This assignment is locked because a lesson number has already been submitted.")
+      setSavingBooking(false)
+      return
+    }
     const slotEnd = createModal.slotIndex + createModal.slotSpan - 1
     if (!canPlaceRange(existingBookings, createModal.slotIndex, slotEnd)) {
       setModalError("Selected time range is already occupied.")
@@ -357,6 +478,12 @@ export default function DispatchCalendar() {
     }
 
     if (selectedType === "OTS") {
+      const studentHourDeltas = (assignmentsByRegistry[createModal.registry] || []).reduce<Record<string, number>>((acc, booking) => {
+        const key = normalizeId(booking.studentId)
+        if (!key) return acc
+        acc[key] = (acc[key] || 0) - (booking.span || 0)
+        return acc
+      }, {})
       const warningResult = await supabase
         .from("flight_ops_day_warnings")
         .upsert(
@@ -384,27 +511,61 @@ export default function DispatchCalendar() {
         .eq("op_date", dateValue)
         .eq("aircraft_registry", createModal.registry)
 
+      if (Object.keys(studentHourDeltas).length > 0) {
+        try {
+          await adjustStudentFlightHours(studentHourDeltas)
+        } catch (syncError) {
+          setModalError(syncError instanceof Error ? syncError.message : "Failed to sync student flight hours.")
+          setSavingBooking(false)
+          return
+        }
+      }
+
       setWarningsByRegistry((prev) => ({ ...prev, [createModal.registry]: "OUT OF SERVICE" }))
       setAssignmentsByRegistry((prev) => ({ ...prev, [createModal.registry]: [] }))
+      setActionNotice({ type: "success", message: "Aircraft marked out of service for the day." })
       closeCreateModal()
       return
     }
 
-    const insertResult = await supabase.from("flight_ops_assignments").insert([
-      {
-        op_date: dateValue,
-        aircraft_registry: createModal.registry,
-        aircraft_type: createModal.fleetType,
-        slot_index: createModal.slotIndex,
-        slot_span: createModal.slotSpan,
-        flight_type: selectedType,
-        student_id: student?.id || selectedStudentId,
-        instructor_id: instructor?.id || selectedInstructorId,
-        created_by: currentUserId,
-      },
-    ])
-    if (insertResult.error) {
-      setModalError(insertResult.error.message)
+    const payload = {
+      op_date: dateValue,
+      aircraft_registry: createModal.registry,
+      aircraft_type: createModal.fleetType,
+      slot_index: createModal.slotIndex,
+      slot_span: createModal.slotSpan,
+      flight_type: selectedType,
+      student_id: student?.id || selectedStudentId,
+      instructor_id: instructor?.id || selectedInstructorId,
+      created_by: currentUserId,
+    }
+    const studentHourDeltas: Record<string, number> = {}
+    const previousStudentId = normalizeId(currentBooking?.studentId || "")
+    const nextStudentId = normalizeId(student?.id || selectedStudentId)
+    const previousSpan = Number(currentBooking?.span || 0)
+    const nextSpan = Number(createModal.slotSpan || 0)
+
+    if (previousStudentId && createModal.assignmentId) {
+      studentHourDeltas[previousStudentId] = (studentHourDeltas[previousStudentId] || 0) - previousSpan
+    }
+    if (nextStudentId) {
+      studentHourDeltas[nextStudentId] = (studentHourDeltas[nextStudentId] || 0) + nextSpan
+    }
+
+    const saveResult = createModal.assignmentId
+      ? await supabase.from("flight_ops_assignments").update(payload).eq("id", createModal.assignmentId).select("id").single()
+      : await supabase.from("flight_ops_assignments").insert([payload]).select("id").single()
+
+    if (saveResult.error) {
+      setModalError(saveResult.error.message)
+      setSavingBooking(false)
+      return
+    }
+
+    try {
+      await adjustStudentFlightHours(studentHourDeltas)
+    } catch (syncError) {
+      setModalError(syncError instanceof Error ? syncError.message : "Failed to sync student flight hours.")
       setSavingBooking(false)
       return
     }
@@ -477,24 +638,31 @@ export default function DispatchCalendar() {
         await Promise.all(emailTasks)
       }
       if (notificationIssues.length > 0) {
-        alert(`Assignment saved. ${notificationIssues.join(" ")}`)
+        alert(`${createModal.assignmentId ? "Assignment updated." : "Assignment saved."} ${notificationIssues.join(" ")}`)
       }
     } catch (notificationError) {
       const message = notificationError instanceof Error ? notificationError.message : "Failed to send notification email."
-      alert(`Assignment saved, but notification failed: ${message}`)
+      alert(`${createModal.assignmentId ? "Assignment updated" : "Assignment saved"}, but notification failed: ${message}`)
     }
 
     const nextBooking: Booking = {
+      id: createModal.assignmentId || String(saveResult.data?.id || ""),
       start: createModal.slotIndex,
       span: createModal.slotSpan,
       studentId: student?.id || selectedStudentId,
       instructorId: instructor?.id || selectedInstructorId,
       type: selectedType,
+      lessonNo: currentBooking?.lessonNo || null,
     }
     setAssignmentsByRegistry((prev) => ({
       ...prev,
-      [createModal.registry]: [...(prev[createModal.registry] || []), nextBooking].sort((left, right) => left.start - right.start),
+      [createModal.registry]: [...(prev[createModal.registry] || []).filter((booking) => booking.id !== createModal.assignmentId), nextBooking].sort((left, right) => left.start - right.start),
     }))
+
+    setActionNotice({
+      type: "success",
+      message: createModal.assignmentId ? "Flight assignment updated successfully." : "New flight assignment added successfully.",
+    })
 
     closeCreateModal()
   }
@@ -646,6 +814,18 @@ export default function DispatchCalendar() {
           </div>
         </div>
 
+        {actionNotice ? (
+          <div
+            className={`rounded-2xl border px-4 py-3 text-sm font-semibold ${
+              actionNotice.type === "success"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : "border-red-200 bg-red-50 text-red-800"
+            }`}
+          >
+            {actionNotice.message}
+          </div>
+        ) : null}
+
         <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full min-w-387.5 border-collapse">
@@ -752,19 +932,40 @@ export default function DispatchCalendar() {
                                 const width = (b.span / timeSlots.length) * 100
                                 const typeMeta = flightTypeOptions.find((option) => option.code === b.type)
                                 const colorClass = typeMeta?.colorClass || "bg-slate-100 border-slate-300"
-                                const studentLabel = studentOptions.find((option) => option.id === b.studentId)?.fullName || b.studentId
-                                const instructorLabel = instructorOptions.find((option) => option.id === b.instructorId)?.fullName || b.instructorId
+                                const isLocked = Boolean(b.lessonNo)
+                                const studentLabel =
+                                  studentOptions.find((option) => normalizeId(option.id) === normalizeId(b.studentId))?.fullName || b.studentId
+                                const instructorLabel =
+                                  instructorOptions.find((option) => normalizeId(option.id) === normalizeId(b.instructorId))?.fullName || b.instructorId
 
                                 return (
-                                  <div
+                                  <button
                                     key={`${row.registry}-booking-${i}`}
-                                    className={`absolute top-1 bottom-1 rounded-md border px-2 py-1 overflow-hidden ${colorClass}`}
+                                    type="button"
+                                    onClick={() => {
+                                      if (isLocked) return
+                                      openEditModal(group.type, row.registry, b)
+                                    }}
+                                    className={`absolute top-1 bottom-1 rounded-md border px-2 py-1 overflow-hidden text-left ${colorClass} ${isLocked ? "cursor-not-allowed opacity-85" : "hover:ring-2 hover:ring-blue-700/40"}`}
                                     style={{ left: `${left}%`, width: `${width}%` }}
+                                    title={isLocked ? "Already filled by lesson no. Assignment is locked." : "Edit assignment"}
                                   >
+                                    {isLocked ? (
+                                      <span
+                                        title="Already filled by lesson no. Assignment is locked."
+                                        className="absolute right-1 top-1 rounded-full bg-slate-900/80 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-white"
+                                      >
+                                        Locked
+                                      </span>
+                                    ) : (
+                                      <span className="absolute right-1 top-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/80 text-slate-700">
+                                        <Pencil size={10} />
+                                      </span>
+                                    )}
                                     <p className="text-[10px] font-black leading-tight truncate">{b.type}</p>
                                     <p className="text-[11px] font-bold leading-tight truncate">{studentLabel}</p>
                                     <p className="text-[11px] italic leading-tight truncate">{instructorLabel}</p>
-                                  </div>
+                                  </button>
                                 )
                               })}
                             </>
@@ -833,7 +1034,7 @@ export default function DispatchCalendar() {
           <div className="w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Create Assignment</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{createModal.assignmentId ? "Edit Assignment" : "Create Assignment"}</p>
                 <h2 className="text-lg font-black text-slate-900">
                   {createModal.fleetType} - {createModal.registry} - {getRangeText(createModal.slotIndex, createModal.slotSpan)}
                 </h2>
@@ -920,17 +1121,31 @@ export default function DispatchCalendar() {
 
               {modalError && <p className="text-xs font-semibold text-red-600">{modalError}</p>}
 
-              <div className="flex items-center justify-end gap-2 pt-1">
-                <button type="button" onClick={closeCreateModal} className="h-10 px-4 rounded-lg border border-slate-300 text-sm font-semibold">
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingBooking}
-                  className="h-10 px-4 rounded-lg bg-blue-900 text-white text-sm font-bold disabled:opacity-60"
-                >
-                  {savingBooking ? "Saving..." : "Add Slot"}
-                </button>
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <div>
+                  {createModal.assignmentId && !((assignmentsByRegistry[createModal.registry] || []).find((booking) => booking.id === createModal.assignmentId)?.lessonNo) ? (
+                    <button
+                      type="button"
+                      onClick={deleteAssignment}
+                      disabled={savingBooking}
+                      className="h-10 px-4 rounded-lg border border-red-300 text-red-700 text-sm font-semibold hover:bg-red-50 disabled:opacity-60"
+                    >
+                      Delete Assignment
+                    </button>
+                  ) : null}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={closeCreateModal} className="h-10 px-4 rounded-lg border border-slate-300 text-sm font-semibold">
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingBooking}
+                    className="h-10 px-4 rounded-lg bg-blue-900 text-white text-sm font-bold disabled:opacity-60"
+                  >
+                    {savingBooking ? "Saving..." : createModal.assignmentId ? "Update Assignment" : "Add Slot"}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

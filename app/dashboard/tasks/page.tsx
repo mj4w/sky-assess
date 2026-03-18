@@ -53,8 +53,6 @@ function TasksPageContent() {
         return
       }
 
-      const today = new Date()
-      const todayDate = `${today.getFullYear()}-${`${today.getMonth() + 1}`.padStart(2, "0")}-${`${today.getDate()}`.padStart(2, "0")}`
       const studentId = String(pilotData.student_id || "").trim()
       if (!studentId) {
         setSessions([])
@@ -66,8 +64,8 @@ function TasksPageContent() {
       const { data, error } = await supabase
         .from("flight_ops_assignments")
         .select("id, op_date, aircraft_type, aircraft_registry, slot_index, slot_span, flight_type, instructor_id, lesson_no")
-        .eq("op_date", todayDate)
         .in("student_id", studentIdCandidates)
+        .order("op_date", { ascending: false })
         .order("slot_index", { ascending: true })
 
       if (error || !data) {
@@ -83,7 +81,7 @@ function TasksPageContent() {
           id: String(row.id),
           aircraft: `${row.aircraft_type} ${row.aircraft_registry}`,
           aircraftRegistry: String(row.aircraft_registry || ""),
-          opDate: String(row.op_date || todayDate),
+          opDate: String(row.op_date || ""),
           instructorId: String(row.instructor_id || ""),
           duration: `${span} Hour${span > 1 ? "s" : ""}`,
           timeLabel: `${slotToHour(start)} - ${slotToHour(end)}`,
@@ -166,12 +164,12 @@ function TasksPageContent() {
         <h1 className="text-3xl font-black italic uppercase text-slate-900 tracking-tight">
           Assigned <span className="text-blue-900">Flight Schedule</span>
         </h1>
-        <p className="text-slate-400 text-sm font-medium">Your flight tasks for today</p>
+        <p className="text-slate-400 text-sm font-medium">Your assigned flight schedules and lesson entries</p>
       </div>
 
       {sessions.length === 0 ? (
         <div className="rounded-2xl border-2 border-dashed border-slate-200 p-8 text-sm text-slate-500">
-          No assigned flights for today.
+          No assigned flights found.
         </div>
       ) : (
         <div className="space-y-3">

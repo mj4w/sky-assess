@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
-import { Loader2, PlusCircle, UserRound, GraduationCap, Shield, Trash2, Pencil, Check, X } from "lucide-react"
+import { Loader2, PlusCircle, UserRound, GraduationCap, Shield, Trash2, Pencil, Check, X, ClipboardCheck } from "lucide-react"
 
 type ManagedRole = "admin" | "flightops"
 type RoleNoticeTone = "success" | "error" | "info"
@@ -336,6 +336,20 @@ export default function AdminPage() {
           </div>
 
           <div className="p-6 space-y-6 bg-slate-50/50">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Evaluation Records</p>
+                <p className="mt-1 text-sm font-semibold text-slate-700">Review all instructor evaluation responses and open detailed records.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => router.push("/dashboard/admin/evaluations")}
+                className="inline-flex h-10 items-center gap-2 rounded-lg bg-blue-900 px-4 text-xs font-black uppercase tracking-widest text-white hover:bg-blue-800"
+              >
+                <ClipboardCheck size={14} />
+                Open Evaluation Directory
+              </button>
+            </div>
             <div className="grid gap-6 lg:grid-cols-3">
               <form onSubmit={handleAddInstructor} className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3">
                 <div className="flex items-center gap-2">

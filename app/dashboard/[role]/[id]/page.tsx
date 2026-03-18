@@ -23,6 +23,10 @@ type AssignmentUnreadRow = {
   notification_read_instructor: boolean | null
 }
 
+function slotToHour(slot: number) {
+  return `${String(6 + slot).padStart(2, "0")}:00`
+}
+
 // --- MINIMALIST NAV BUTTON ---
 const NavButton = ({ href, title, icon, description, onClick, badgeCount = 0 }: any) => {
   const content = (
@@ -72,6 +76,7 @@ export default function DashboardPage() {
   const [debriefUnreadCount, setDebriefUnreadCount] = useState(0)
   const [nextSessionLabel, setNextSessionLabel] = useState("TBD")
   const [nextSessionSub, setNextSessionSub] = useState("Upcoming UTC")
+  const [checklistDescription, setChecklistDescription] = useState("Assigned flight duties.")
   const isInstructor = pilotData?.role === 'instructor'
   const isAdmin = pilotData?.role === 'admin'
   useEffect(() => {
@@ -155,8 +160,6 @@ export default function DashboardPage() {
   }, [pilotData])
 
   useEffect(() => {
-    const slotToHour = (slot: number) => `${String(6 + slot).padStart(2, "0")}:00`
-
     const loadNextSession = async () => {
       if (!pilotData || pilotData.role !== "student") {
         setNextSessionLabel("TBD")
@@ -203,6 +206,49 @@ export default function DashboardPage() {
     }
 
     loadNextSession()
+  }, [pilotData])
+
+  useEffect(() => {
+    const loadChecklistIndicator = async () => {
+      if (!pilotData || pilotData.role !== "student") {
+        setChecklistDescription("Assigned flight duties.")
+        return
+      }
+
+      const studentId = String(pilotData.student_id || "").trim()
+      if (!studentId) {
+        setChecklistDescription("Assigned flight duties.")
+        return
+      }
+
+      const idCandidates = [...new Set([studentId, studentId.toUpperCase(), studentId.toLowerCase()])]
+      const today = new Date()
+      const todayDate = `${today.getFullYear()}-${`${today.getMonth() + 1}`.padStart(2, "0")}-${`${today.getDate()}`.padStart(2, "0")}`
+
+      const { data, error: fetchError } = await supabase
+        .from("flight_ops_assignments")
+        .select("aircraft_type, aircraft_registry, slot_index, slot_span, flight_type")
+        .eq("op_date", todayDate)
+        .in("student_id", idCandidates)
+        .order("slot_index", { ascending: true })
+
+      if (fetchError || !data?.length) {
+        setChecklistDescription("No flight assigned for today.")
+        return
+      }
+
+      if (data.length === 1) {
+        const current = data[0]
+        const start = slotToHour(Number(current.slot_index) || 0)
+        const end = slotToHour((Number(current.slot_index) || 0) + (Number(current.slot_span) || 1))
+        setChecklistDescription(`Today: ${current.aircraft_type} ${current.aircraft_registry} · ${start}-${end} · ${current.flight_type}`)
+        return
+      }
+
+      setChecklistDescription(`Today: ${data.length} assigned flights.`)
+    }
+
+    loadChecklistIndicator()
   }, [pilotData])
 
   if (loading) return (
@@ -258,7 +304,7 @@ export default function DashboardPage() {
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5 pt-2">
               <NavButton href="/dashboard/performance" title="Performance" description="Training progress curves." icon={<LineChart size={20} />} />
               <NavButton href="/dashboard/instructor-evaluation" title="Instructor Eval" description="Submit instructor feedback." icon={<ClipboardCheck size={20} />} />
-              <NavButton href="/dashboard/tasks" title="Checklists" description="Assigned flight duties." icon={<ClipboardList size={20} />} badgeCount={assignmentUnreadCount} />
+              <NavButton href="/dashboard/tasks" title="Checklists" description={checklistDescription} icon={<ClipboardList size={20} />} badgeCount={assignmentUnreadCount} />
               <NavButton href="/dashboard/profile" title="My Profile" description="Certificates & info." icon={<UserCircle size={20} />} />
               <NavButton 
                 onClick={() => setShowDebriefModal(true)} 
