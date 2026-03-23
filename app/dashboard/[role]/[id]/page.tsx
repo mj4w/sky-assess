@@ -165,7 +165,7 @@ export default function DashboardPage() {
 
       const { data, error } = await supabase
         .from("user_navigation_guides")
-        .select("completed")
+        .select("completed, status")
         .eq("user_id", pilotData.id)
         .eq("page_key", STUDENT_DASHBOARD_GUIDE_KEY)
         .maybeSingle()
