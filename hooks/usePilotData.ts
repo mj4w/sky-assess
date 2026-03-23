@@ -49,18 +49,15 @@ export function usePilotData() {
 
       // Prefer matching the declared role, but fall back to the other table if needed.
       if (role === "instructor") {
-
         const name = await tryLookup("instructor_info", "instructor_id")
-        console.log(name)
         if (name) return name
-        return await tryLookup("instructor_info", "instructor_id")
-       
+        return await tryLookup("student_info", "student_id")
       }
 
       if (role === "student") {
         const name = await tryLookup("student_info", "student_id")
         if (name) return name
-        return await tryLookup("student_info", "student_id")
+        return await tryLookup("instructor_info", "instructor_id")
       }
     } catch {
       return null

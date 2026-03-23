@@ -1,11 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, BarChart3, CalendarRange, TrendingUp } from "lucide-react"
+import { ArrowLeft, BarChart3, CalendarRange, HelpCircle, TrendingUp } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { usePilotData } from "@/hooks/usePilotData"
+import NavigationGuideOverlay from "@/components/NavigationGuideOverlay"
 import { supabase } from "@/lib/supabase"
+import { useNavigationGuide } from "@/hooks/useNavigationGuide"
 
 interface SelfAssessmentRow {
   id: string
@@ -91,6 +93,46 @@ export default function PerformancePage() {
   const [takeoff, setTakeoff] = useState(3)
   const [turns, setTurns] = useState(3)
   const [notes, setNotes] = useState("")
+  const heroRef = useRef<HTMLDivElement | null>(null)
+  const summaryRef = useRef<HTMLDivElement | null>(null)
+  const graphRef = useRef<HTMLDivElement | null>(null)
+  const formRef = useRef<HTMLDivElement | null>(null)
+  const guideSteps = useMemo(
+    () => [
+      {
+        key: "hero",
+        title: "Performance Overview",
+        description: "This header explains that the page is for your self-assessment scores and monthly progress review.",
+        ref: heroRef,
+      },
+      {
+        key: "summary",
+        title: "Month Summary",
+        description: "Use this section to switch months and review your average score and improvement trend.",
+        ref: summaryRef,
+      },
+      {
+        key: "graph",
+        title: "Monthly Progress Graph",
+        description: "Each bar shows your Landings, Takeoff, and Turns grades for a recorded assessment date.",
+        ref: graphRef,
+      },
+      {
+        key: "form",
+        title: "Daily Self-Assessment Form",
+        description: "Enter your date, choose the rating for each area, add notes, and save your daily performance entry here.",
+        ref: formRef,
+      },
+    ],
+    []
+  )
+
+  const guide = useNavigationGuide({
+    enabled: pilotData?.role === "student",
+    userId: pilotData?.id,
+    pageKey: "student-dashboard-performance",
+    steps: guideSteps,
+  })
 
   const loadAssessments = useCallback(async () => {
     if (!pilotData || pilotData.role !== "student") return
@@ -222,21 +264,31 @@ export default function PerformancePage() {
   return (
     <div className="min-h-screen bg-slate-50 p-8 lg:p-12 space-y-6">
       <div className="max-w-6xl mx-auto space-y-6">
-        <Link
-          href={`/dashboard/${pilotData.role}/${pilotData.id}`}
-          className="inline-flex items-center gap-2 text-slate-500 hover:text-blue-900 transition-colors text-[10px] font-black uppercase tracking-[0.2em]"
-        >
-          <ArrowLeft size={14} /> Back to Terminal
-        </Link>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link
+            href={`/dashboard/${pilotData.role}/${pilotData.id}`}
+            className="inline-flex items-center gap-2 text-slate-500 hover:text-blue-900 transition-colors text-[10px] font-black uppercase tracking-[0.2em]"
+          >
+            <ArrowLeft size={14} /> Back to Terminal
+          </Link>
+          <button
+            type="button"
+            onClick={guide.openGuide}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-700 hover:border-blue-900 hover:text-blue-900"
+          >
+            <HelpCircle size={14} />
+            {guide.guideCompleted ? "Replay Tour" : "Start Tour"}
+          </button>
+        </div>
 
         <section className="rounded-3xl border border-slate-200 bg-white shadow-xl overflow-hidden">
-          <div className="px-6 py-6 md:px-8 md:py-8 bg-gradient-to-r from-blue-950 via-blue-900 to-blue-800">
+          <div ref={heroRef} className="px-6 py-6 md:px-8 md:py-8 bg-gradient-to-r from-blue-950 via-blue-900 to-blue-800">
             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-100">Student Self Assessment</p>
             <h1 className="mt-2 text-3xl md:text-4xl font-black tracking-tight text-white">My Performance</h1>
             <p className="mt-1 text-xs font-semibold text-blue-100/80">Grading scale (S+, S, S-, NP) and track monthly progress</p>
           </div>
 
-          <div className="p-6 grid gap-4 md:grid-cols-3">
+          <div ref={summaryRef} className="p-6 grid gap-4 md:grid-cols-3">
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><CalendarRange size={12} /> Month</p>
               <input type="month" value={monthValue} onChange={(e) => setMonthValue(e.target.value)} className="mt-2 h-10 rounded-lg border border-slate-300 px-3 text-sm font-bold w-full" />
@@ -255,7 +307,7 @@ export default function PerformancePage() {
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Monthly Progress Graph</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:items-stretch">
-                <div className="h-full min-h-72 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div ref={graphRef} className="h-full min-h-72 rounded-xl border border-slate-200 bg-slate-50 p-4">
                   {loadingAssessments ? (
                     <p className="text-sm text-slate-500">Loading graph...</p>
                   ) : assessments.length === 0 ? (
@@ -286,7 +338,7 @@ export default function PerformancePage() {
                     </div>
                   )}
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                <div ref={formRef} className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Add / Update Daily Self-Assessment</p>
                   <input type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} className="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm font-bold" />
                   <div className="grid grid-cols-1 gap-2">
@@ -306,6 +358,18 @@ export default function PerformancePage() {
           </div>
         </section>
       </div>
+      <NavigationGuideOverlay
+        showGuide={guide.showGuide}
+        activeRect={guide.activeRect}
+        activeStep={guide.activeStep}
+        stepIndex={guide.stepIndex}
+        totalSteps={guide.totalSteps}
+        showConfetti={guide.showConfetti}
+        confettiPieces={guide.confettiPieces}
+        onPrevious={guide.previousStep}
+        onNext={guide.nextStep}
+        onSkip={guide.skipGuide}
+      />
     </div>
   )
 }

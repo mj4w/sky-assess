@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Award, BadgeInfo, CheckCircle2, ClipboardList, Clock3, FileText, Pencil, Save, ShieldAlert, Star, X } from "lucide-react"
+import { ArrowLeft, Award, BadgeInfo, CheckCircle2, ClipboardList, Clock3, FileText, HelpCircle, Pencil, Save, ShieldAlert, Star, X } from "lucide-react"
 import { useRouter } from "next/navigation"
+import NavigationGuideOverlay from "@/components/NavigationGuideOverlay"
 import { usePilotData } from "@/hooks/usePilotData"
+import { useNavigationGuide } from "@/hooks/useNavigationGuide"
 import { supabase } from "@/lib/supabase"
 
 interface DebriefRow {
@@ -67,6 +69,81 @@ export default function StudentProfilePage() {
   const [savingInfo, setSavingInfo] = useState(false)
   const [infoMessage, setInfoMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const reloadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const heroRef = useRef<HTMLDivElement | null>(null)
+  const infoRef = useRef<HTMLDivElement | null>(null)
+  const metricsRef = useRef<HTMLDivElement | null>(null)
+  const completedLessonsRef = useRef<HTMLDivElement | null>(null)
+  const scoresRef = useRef<HTMLDivElement | null>(null)
+  const strengthsRef = useRef<HTMLDivElement | null>(null)
+  const improvementsRef = useRef<HTMLDivElement | null>(null)
+  const remarksRef = useRef<HTMLDivElement | null>(null)
+  const courseStatusRef = useRef<HTMLDivElement | null>(null)
+  const guideSteps = useMemo(
+    () => [
+      {
+        key: "hero",
+        title: "Student Profile Overview",
+        description: "This page summarizes your student information, flight progress, completed lessons, and course status.",
+        ref: heroRef,
+      },
+      {
+        key: "info",
+        title: "Basic Student Info",
+        description: "Update your name, student ID, and email here. This section keeps your profile information current.",
+        ref: infoRef,
+      },
+      {
+        key: "metrics",
+        title: "Profile Metrics",
+        description: "These boxes summarize your total flight hours, completed lessons, signed debriefs, and average grading score.",
+        ref: metricsRef,
+      },
+      {
+        key: "completed-lessons",
+        title: "Completed Lessons",
+        description: "This list shows your debrief records by course, lesson number, date, and instructor snapshot.",
+        ref: completedLessonsRef,
+      },
+      {
+        key: "scores",
+        title: "Evaluation & Scores",
+        description: "This section lists the individual grading items and the latest scores recorded in your debriefs.",
+        ref: scoresRef,
+      },
+      {
+        key: "strengths",
+        title: "Areas of Strength",
+        description: "These are the graded items where your average performance is strongest across saved debrief records.",
+        ref: strengthsRef,
+      },
+      {
+        key: "improvements",
+        title: "Areas for Improvement",
+        description: "This section highlights the graded items with the lowest averages so you know what to focus on next.",
+        ref: improvementsRef,
+      },
+      {
+        key: "remarks",
+        title: "Remarks History",
+        description: "Use this panel to review instructor remarks recorded across your completed debrief sessions.",
+        ref: remarksRef,
+      },
+      {
+        key: "course-status",
+        title: "Course Status",
+        description: "This section tracks debrief-based progress for each course and shows whether your records are signed or still in progress.",
+        ref: courseStatusRef,
+      },
+    ],
+    []
+  )
+
+  const guide = useNavigationGuide({
+    enabled: pilotData?.role === "student",
+    userId: pilotData?.id,
+    pageKey: "student-dashboard-profile",
+    steps: guideSteps,
+  })
 
   useEffect(() => {
     if (!pilotData) return
@@ -364,22 +441,32 @@ export default function StudentProfilePage() {
   return (
     <div className="min-h-screen bg-slate-50 p-6 lg:p-10">
       <div className="max-w-6xl mx-auto space-y-6">
-        <Link
-          href={`/dashboard/${pilotData.role}/${pilotData.id}`}
-          className="inline-flex items-center gap-2 text-slate-500 hover:text-blue-900 transition-colors text-[10px] font-black uppercase tracking-[0.2em]"
-        >
-          <ArrowLeft size={14} /> Back to Dashboard
-        </Link>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link
+            href={`/dashboard/${pilotData.role}/${pilotData.id}`}
+            className="inline-flex items-center gap-2 text-slate-500 hover:text-blue-900 transition-colors text-[10px] font-black uppercase tracking-[0.2em]"
+          >
+            <ArrowLeft size={14} /> Back to Dashboard
+          </Link>
+          <button
+            type="button"
+            onClick={guide.openGuide}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-700 hover:border-blue-900 hover:text-blue-900"
+          >
+            <HelpCircle size={14} />
+            {guide.guideCompleted ? "Replay Tour" : "Start Tour"}
+          </button>
+        </div>
 
         <section className="rounded-3xl border border-slate-200 bg-white shadow-xl overflow-hidden">
-          <div className="px-6 py-6 md:px-8 md:py-8 bg-gradient-to-r from-blue-950 via-blue-900 to-blue-800">
+          <div ref={heroRef} className="px-6 py-6 md:px-8 md:py-8 bg-gradient-to-r from-blue-950 via-blue-900 to-blue-800">
             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-100">SkyAssess</p>
             <h1 className="mt-2 text-3xl md:text-4xl font-black tracking-tight text-white">Student Profile</h1>
             <p className="mt-1 text-xs font-semibold text-blue-100/80">Certificates & Information</p>
           </div>
 
           <div className="p-6 md:p-8 space-y-6">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <div ref={infoRef} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Basic Student Info</p>
                 {!editingInfo ? (
@@ -476,7 +563,7 @@ export default function StudentProfilePage() {
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div ref={metricsRef} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-xl border border-slate-200 bg-white p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -519,7 +606,7 @@ export default function StudentProfilePage() {
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-white p-5">
+              <div ref={completedLessonsRef} className="rounded-2xl border border-slate-200 bg-white p-5">
                 <div className="flex items-center gap-2 mb-3"><ClipboardList size={16} className="text-blue-900" /><p className="text-xs font-black uppercase tracking-wider text-blue-900">Completed Lessons</p></div>
                 <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                   {debriefs.length === 0 ? (
@@ -535,7 +622,7 @@ export default function StudentProfilePage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-5">
+              <div ref={scoresRef} className="rounded-2xl border border-slate-200 bg-white p-5">
                 <div className="flex items-center gap-2 mb-3"><Star size={16} className="text-blue-900" /><p className="text-xs font-black uppercase tracking-wider text-blue-900">Evaluation & Scores</p></div>
                 <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                   {debriefItems.length === 0 ? (
@@ -553,7 +640,7 @@ export default function StudentProfilePage() {
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-white p-5">
+              <div ref={strengthsRef} className="rounded-2xl border border-slate-200 bg-white p-5">
                 <div className="flex items-center gap-2 mb-3"><Award size={16} className="text-emerald-700" /><p className="text-xs font-black uppercase tracking-wider text-emerald-700">Areas of Strength</p></div>
                 <ul className="space-y-2">
                   {strengthsWeaknesses.strengths.length === 0 ? (
@@ -568,7 +655,7 @@ export default function StudentProfilePage() {
                 </ul>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-5">
+              <div ref={improvementsRef} className="rounded-2xl border border-slate-200 bg-white p-5">
                 <div className="flex items-center gap-2 mb-3"><ShieldAlert size={16} className="text-amber-700" /><p className="text-xs font-black uppercase tracking-wider text-amber-700">Areas for Improvement</p></div>
                 <ul className="space-y-2">
                   {strengthsWeaknesses.weaknesses.length === 0 ? (
@@ -584,7 +671,7 @@ export default function StudentProfilePage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <div ref={remarksRef} className="rounded-2xl border border-slate-200 bg-white p-5">
               <div className="flex items-center gap-2 mb-3"><FileText size={16} className="text-blue-900" /><p className="text-xs font-black uppercase tracking-wider text-blue-900">Remarks History</p></div>
               <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                 {remarksHistory.length === 0 ? (
@@ -601,7 +688,7 @@ export default function StudentProfilePage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-5">
+            <div ref={courseStatusRef} className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-5">
               <div className="flex items-center gap-2"><BadgeInfo size={16} className="text-blue-900" /><p className="text-xs font-black uppercase tracking-wider text-blue-900">Certificates & Info</p></div>
 
               <div className="rounded-xl border border-slate-200 bg-white p-4">
@@ -645,6 +732,18 @@ export default function StudentProfilePage() {
           </div>
         </section>
       </div>
+      <NavigationGuideOverlay
+        showGuide={guide.showGuide}
+        activeRect={guide.activeRect}
+        activeStep={guide.activeStep}
+        stepIndex={guide.stepIndex}
+        totalSteps={guide.totalSteps}
+        showConfetti={guide.showConfetti}
+        confettiPieces={guide.confettiPieces}
+        onPrevious={guide.previousStep}
+        onNext={guide.nextStep}
+        onSkip={guide.skipGuide}
+      />
     </div>
   )
 }

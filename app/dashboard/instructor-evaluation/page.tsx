@@ -1,11 +1,13 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Star } from "lucide-react"
+import { ArrowLeft, HelpCircle, Star } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { usePilotData } from "@/hooks/usePilotData"
+import NavigationGuideOverlay from "@/components/NavigationGuideOverlay"
 import { supabase } from "@/lib/supabase"
+import { useNavigationGuide } from "@/hooks/useNavigationGuide"
 
 interface InstructorOption {
   id: string
@@ -79,6 +81,10 @@ export default function InstructorEvaluationPage() {
   const [influencePolicy, setInfluencePolicy] = useState(3)
   const [notes, setNotes] = useState("")
   const currentEvalMonth = monthStart(new Date())
+  const heroRef = useRef<HTMLDivElement | null>(null)
+  const selectionRef = useRef<HTMLDivElement | null>(null)
+  const ratingRef = useRef<HTMLDivElement | null>(null)
+  const submitRef = useRef<HTMLDivElement | null>(null)
 
   const competencyDetails: Record<DetailSectionKey, string[]> = {
     "Instructional Planning": [
@@ -127,6 +133,43 @@ export default function InstructorEvaluationPage() {
       "My instructor's skills remain current and relevant.",
     ],
   }
+
+  const guideSteps = useMemo(
+    () => [
+      {
+        key: "hero",
+        title: "Evaluation Purpose",
+        description: "This page is where you submit formal feedback for the instructor assigned to your recent flight training.",
+        ref: heroRef,
+      },
+      {
+        key: "selection",
+        title: "Instructor Selection",
+        description: "Choose the instructor, review your required evaluations for today, and confirm whether evaluation is available.",
+        ref: selectionRef,
+      },
+      {
+        key: "ratings",
+        title: "Competency Ratings",
+        description: "Score each teaching area from 1 to 4. These ratings become part of the instructor evaluation record.",
+        ref: ratingRef,
+      },
+      {
+        key: "submit",
+        title: "Submit Evaluation",
+        description: "Review the overall score, add optional notes, and submit your completed instructor evaluation here.",
+        ref: submitRef,
+      },
+    ],
+    []
+  )
+
+  const guide = useNavigationGuide({
+    enabled: pilotData?.role === "student",
+    userId: pilotData?.id,
+    pageKey: "student-dashboard-instructor-evaluation",
+    steps: guideSteps,
+  })
 
   useEffect(() => {
     if (!pilotData) return
@@ -338,22 +381,32 @@ export default function InstructorEvaluationPage() {
   return (
     <div className="min-h-screen bg-slate-50 p-8 lg:p-12 space-y-6">
       <div className="max-w-5xl mx-auto space-y-6">
-        <Link
-          href={`/dashboard/${pilotData.role}/${pilotData.id}`}
-          className="inline-flex items-center gap-2 text-slate-500 hover:text-blue-900 transition-colors text-[10px] font-black uppercase tracking-[0.2em]"
-        >
-          <ArrowLeft size={14} /> Back to Terminal
-        </Link>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link
+            href={`/dashboard/${pilotData.role}/${pilotData.id}`}
+            className="inline-flex items-center gap-2 text-slate-500 hover:text-blue-900 transition-colors text-[10px] font-black uppercase tracking-[0.2em]"
+          >
+            <ArrowLeft size={14} /> Back to Terminal
+          </Link>
+          <button
+            type="button"
+            onClick={guide.openGuide}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-700 hover:border-blue-900 hover:text-blue-900"
+          >
+            <HelpCircle size={14} />
+            {guide.guideCompleted ? "Replay Tour" : "Start Tour"}
+          </button>
+        </div>
 
         <section className="rounded-3xl border border-slate-200 bg-white shadow-xl overflow-hidden">
-          <div className="px-6 py-6 md:px-8 md:py-8 bg-gradient-to-r from-blue-950 via-blue-900 to-blue-800">
+          <div ref={heroRef} className="px-6 py-6 md:px-8 md:py-8 bg-gradient-to-r from-blue-950 via-blue-900 to-blue-800">
             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-100">Student Feedback</p>
             <h1 className="mt-2 text-3xl md:text-4xl font-black tracking-tight text-white">Instructor Evaluation</h1>
             <p className="mt-1 text-xs font-semibold text-blue-100/80">Rate each area from 1 to 4 based on your recent flight training</p>
           </div>
 
           <div className="p-6 space-y-5">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div ref={selectionRef} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Selected Instructor</p>
               <select
                 value={selectedInstructorId}
@@ -378,7 +431,7 @@ export default function InstructorEvaluationPage() {
               </p>
             </div>
 
-            <div className="rounded-xl border border-slate-200 overflow-hidden">
+            <div ref={ratingRef} className="rounded-xl border border-slate-200 overflow-hidden">
               <div className="bg-blue-900 px-4 py-3">
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-100">Instructor Competency Evaluation</p>
               </div>
@@ -439,7 +492,7 @@ export default function InstructorEvaluationPage() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+            <div ref={submitRef} className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Overall Score</p>
                 <p className="text-xl font-black text-blue-900 flex items-center gap-1"><Star size={16} /> {totalScore} / 36</p>
@@ -467,6 +520,18 @@ export default function InstructorEvaluationPage() {
           </div>
         </section>
       </div>
+      <NavigationGuideOverlay
+        showGuide={guide.showGuide}
+        activeRect={guide.activeRect}
+        activeStep={guide.activeStep}
+        stepIndex={guide.stepIndex}
+        totalSteps={guide.totalSteps}
+        showConfetti={guide.showConfetti}
+        confettiPieces={guide.confettiPieces}
+        onPrevious={guide.previousStep}
+        onNext={guide.nextStep}
+        onSkip={guide.skipGuide}
+      />
     </div>
   )
 }

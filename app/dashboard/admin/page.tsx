@@ -1,9 +1,11 @@
 "use client"
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react"
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import NavigationGuideOverlay from "@/components/NavigationGuideOverlay"
 import { supabase } from "@/lib/supabase"
-import { Loader2, PlusCircle, UserRound, GraduationCap, Shield, Trash2, Pencil, Check, X, ClipboardCheck } from "lucide-react"
+import { Loader2, PlusCircle, UserRound, GraduationCap, Shield, Trash2, Pencil, Check, X, ClipboardCheck, HelpCircle } from "lucide-react"
+import { useNavigationGuide } from "@/hooks/useNavigationGuide"
 
 type ManagedRole = "admin" | "flightops"
 type RoleNoticeTone = "success" | "error" | "info"
@@ -27,6 +29,7 @@ interface StaffRoleRow {
 export default function AdminPage() {
   const router = useRouter()
   const [checkingAccess, setCheckingAccess] = useState(true)
+  const [adminUserId, setAdminUserId] = useState("")
 
   const [instructorId, setInstructorId] = useState("")
   const [instructorName, setInstructorName] = useState("")
@@ -55,6 +58,52 @@ export default function AdminPage() {
   const [editingInstructorName, setEditingInstructorName] = useState("")
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null)
   const [editingStudentName, setEditingStudentName] = useState("")
+  const heroRef = useRef<HTMLDivElement | null>(null)
+  const evaluationRef = useRef<HTMLDivElement | null>(null)
+  const formsRef = useRef<HTMLDivElement | null>(null)
+  const listsRef = useRef<HTMLDivElement | null>(null)
+  const rolesRef = useRef<HTMLDivElement | null>(null)
+  const guideSteps = useMemo(
+    () => [
+      {
+        key: "hero",
+        title: "Admin Overview",
+        description: "This dashboard is the main control panel for managing personnel records and dashboard access roles.",
+        ref: heroRef,
+      },
+      {
+        key: "evaluation",
+        title: "Evaluation Directory",
+        description: "Use this card to open the detailed instructor evaluation directory for administrative review.",
+        ref: evaluationRef,
+      },
+      {
+        key: "forms",
+        title: "Enrollment and Role Forms",
+        description: "These forms let you add instructors, add students, and assign admin or flightops roles by email.",
+        ref: formsRef,
+      },
+      {
+        key: "lists",
+        title: "Personnel Lists",
+        description: "These sections let you edit and remove instructors and students already stored in the system.",
+        ref: listsRef,
+      },
+      {
+        key: "roles",
+        title: "Staff Role Lists",
+        description: "This section shows which profiles currently have admin and flightops dashboard access.",
+        ref: rolesRef,
+      },
+    ],
+    []
+  )
+  const guide = useNavigationGuide({
+    enabled: !checkingAccess && Boolean(adminUserId),
+    userId: adminUserId || undefined,
+    pageKey: "admin-dashboard-home",
+    steps: guideSteps,
+  })
 
   const loadLists = useCallback(async () => {
     setLoadingLists(true)
@@ -102,6 +151,7 @@ export default function AdminPage() {
         return
       }
 
+      setAdminUserId(user.id)
       await loadLists()
       setCheckingAccess(false)
     }
@@ -315,10 +365,18 @@ export default function AdminPage() {
     <div className="min-h-screen bg-[#FDFDFD] p-6 lg:p-10">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="rounded-3xl border border-slate-200 bg-white shadow-xl overflow-hidden">
-          <div className="px-6 py-6 md:px-8 md:py-8 bg-linear-to-r from-slate-900 via-blue-900 to-blue-800">
+          <div ref={heroRef} className="px-6 py-6 md:px-8 md:py-8 bg-linear-to-r from-slate-900 via-blue-900 to-blue-800">
             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-100">Admin Enrollment</p>
             <h1 className="mt-2 text-3xl md:text-4xl font-black tracking-tight text-white">Personnel & Roles Management</h1>
             <p className="mt-1 text-xs font-semibold text-blue-100/80">Add, edit, and remove instructors/students and manage staff roles.</p>
+            <button
+              type="button"
+              onClick={guide.openGuide}
+              className="mt-5 inline-flex items-center gap-2 rounded-lg border border-white/25 bg-white/10 px-4 py-2 text-[11px] font-black uppercase tracking-wider text-white transition-colors hover:bg-white/20"
+            >
+              <HelpCircle size={14} />
+              {guide.guideCompleted ? "Replay Tour" : "Start Tour"}
+            </button>
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
               <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3">
                 <p className="text-[10px] font-black uppercase tracking-widest text-blue-100">Instructors</p>
@@ -336,7 +394,7 @@ export default function AdminPage() {
           </div>
 
           <div className="p-6 space-y-6 bg-slate-50/50">
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4">
+            <div ref={evaluationRef} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Evaluation Records</p>
                 <p className="mt-1 text-sm font-semibold text-slate-700">Review all instructor evaluation responses and open detailed records.</p>
@@ -350,7 +408,7 @@ export default function AdminPage() {
                 Open Evaluation Directory
               </button>
             </div>
-            <div className="grid gap-6 lg:grid-cols-3">
+            <div ref={formsRef} className="grid gap-6 lg:grid-cols-3">
               <form onSubmit={handleAddInstructor} className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3">
                 <div className="flex items-center gap-2">
                   <UserRound size={16} className="text-blue-900" />
@@ -411,7 +469,7 @@ export default function AdminPage() {
 
             {listMsg ? <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-semibold text-red-700">{listMsg}</div> : null}
 
-            <div className="grid gap-6 xl:grid-cols-2">
+            <div ref={listsRef} className="grid gap-6 xl:grid-cols-2">
               <section className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-200 bg-slate-50">
                   <h3 className="text-xs font-black uppercase tracking-widest text-slate-700">Instructor List</h3>
@@ -505,7 +563,7 @@ export default function AdminPage() {
               </section>
             </div>
 
-            <section className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+            <section ref={rolesRef} className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
               <div className="px-4 py-3 border-b border-slate-200 bg-slate-50">
                 <h3 className="text-xs font-black uppercase tracking-widest text-slate-700">Staff Role List (Profiles)</h3>
               </div>
@@ -554,6 +612,18 @@ export default function AdminPage() {
           </div>
         </div>
       </div>
+      <NavigationGuideOverlay
+        showGuide={guide.showGuide}
+        activeRect={guide.activeRect}
+        activeStep={guide.activeStep}
+        stepIndex={guide.stepIndex}
+        totalSteps={guide.totalSteps}
+        showConfetti={guide.showConfetti}
+        confettiPieces={guide.confettiPieces}
+        onPrevious={guide.previousStep}
+        onNext={guide.nextStep}
+        onSkip={guide.skipGuide}
+      />
     </div>
   )
 }
