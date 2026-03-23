@@ -1,10 +1,12 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, BarChart3, ShieldCheck, Star } from "lucide-react"
+import { ArrowLeft, BarChart3, HelpCircle, ShieldCheck, Star } from "lucide-react"
 import { useRouter } from "next/navigation"
+import NavigationGuideOverlay from "@/components/NavigationGuideOverlay"
 import { usePilotData } from "@/hooks/usePilotData"
+import { useNavigationGuide } from "@/hooks/useNavigationGuide"
 import { supabase } from "@/lib/supabase"
 
 interface FeedbackRow {
@@ -98,6 +100,45 @@ export default function InstructorEvaluationResultsPage() {
   const [monthValue, setMonthValue] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`)
   const [rows, setRows] = useState<FeedbackRow[]>([])
   const [message, setMessage] = useState("")
+  const heroRef = useRef<HTMLDivElement | null>(null)
+  const filtersRef = useRef<HTMLDivElement | null>(null)
+  const resultsRef = useRef<HTMLDivElement | null>(null)
+  const responseRef = useRef<HTMLDivElement | null>(null)
+  const guideSteps = useMemo(
+    () => [
+      {
+        key: "hero",
+        title: "Evaluation Analytics Overview",
+        description: "This page summarizes anonymous student evaluations submitted for the current instructor account.",
+        ref: heroRef,
+      },
+      {
+        key: "filters",
+        title: "Month and Summary Filters",
+        description: "Use these cards to filter by month and review the response count and average overall score.",
+        ref: filtersRef,
+      },
+      {
+        key: "results",
+        title: "Evaluation Response List",
+        description: "This section lists each anonymous response submitted for the selected month.",
+        ref: resultsRef,
+      },
+      {
+        key: "response",
+        title: "Detailed Response Breakdown",
+        description: "Open the detailed competency sections here to inspect per-item ratings and narrative feedback.",
+        ref: responseRef,
+      },
+    ],
+    []
+  )
+  const guide = useNavigationGuide({
+    enabled: pilotData?.role === "instructor",
+    userId: pilotData?.id,
+    pageKey: "instructor-dashboard-evaluations",
+    steps: guideSteps,
+  })
 
   useEffect(() => {
     if (!pilotData) return
@@ -171,22 +212,32 @@ export default function InstructorEvaluationResultsPage() {
   return (
     <div className="min-h-screen bg-slate-100 p-8 lg:p-12 space-y-6">
       <div className="max-w-6xl mx-auto space-y-6">
-        <Link
-          href={`/dashboard/${pilotData.role}/${pilotData.id}`}
-          className="inline-flex items-center gap-2 text-slate-500 hover:text-blue-900 transition-colors text-[10px] font-black uppercase tracking-[0.2em]"
-        >
-          <ArrowLeft size={14} /> Back to Dashboard
-        </Link>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link
+            href={`/dashboard/${pilotData.role}/${pilotData.id}`}
+            className="inline-flex items-center gap-2 text-slate-500 hover:text-blue-900 transition-colors text-[10px] font-black uppercase tracking-[0.2em]"
+          >
+            <ArrowLeft size={14} /> Back to Dashboard
+          </Link>
+          <button
+            type="button"
+            onClick={guide.openGuide}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-700 hover:border-blue-900 hover:text-blue-900"
+          >
+            <HelpCircle size={14} />
+            {guide.guideCompleted ? "Replay Tour" : "Start Tour"}
+          </button>
+        </div>
 
         <section className="rounded-3xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
-          <div className="px-6 py-6 md:px-8 md:py-8 bg-gradient-to-r from-slate-900 via-blue-950 to-slate-800">
+          <div ref={heroRef} className="px-6 py-6 md:px-8 md:py-8 bg-gradient-to-r from-slate-900 via-blue-950 to-slate-800">
             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-100">Instructor Analytics</p>
             <h1 className="mt-2 text-3xl md:text-4xl font-black tracking-tight text-white">Anonymous Student Evaluations</h1>
             <p className="mt-1 text-xs font-semibold text-blue-100/80">Professional summary of monthly anonymous student feedback</p>
           </div>
 
           <div className="p-6 space-y-6">
-            <div className="grid gap-4 md:grid-cols-3">
+            <div ref={filtersRef} className="grid gap-4 md:grid-cols-3">
               <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Month</p>
                 <input type="month" value={monthValue} onChange={(e) => setMonthValue(e.target.value)} className="mt-2 h-10 w-full rounded-lg border border-slate-300 px-3 text-sm font-bold" />
@@ -208,7 +259,7 @@ export default function InstructorEvaluationResultsPage() {
                 <p className="text-base font-bold text-slate-700">No evaluations submitted for this month.</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div ref={resultsRef} className="space-y-4">
                 {rows.map((row, index) => {
                   const total =
                     row.attr_instructional_planning +
@@ -221,7 +272,7 @@ export default function InstructorEvaluationResultsPage() {
                     row.influence_work_environment +
                     row.influence_institutional_policies
                   return (
-                    <div key={row.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div ref={index === 0 ? responseRef : undefined} key={row.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-sm font-black text-slate-900 uppercase tracking-wide">Anonymous Response #{index + 1}</p>
                         <p className="text-sm font-black text-blue-900 flex items-center gap-1"><Star size={14} /> {total}/36</p>
@@ -290,6 +341,18 @@ export default function InstructorEvaluationResultsPage() {
           </div>
         </section>
       </div>
+      <NavigationGuideOverlay
+        showGuide={guide.showGuide}
+        activeRect={guide.activeRect}
+        activeStep={guide.activeStep}
+        stepIndex={guide.stepIndex}
+        totalSteps={guide.totalSteps}
+        showConfetti={guide.showConfetti}
+        confettiPieces={guide.confettiPieces}
+        onPrevious={guide.previousStep}
+        onNext={guide.nextStep}
+        onSkip={guide.skipGuide}
+      />
     </div>
   )
 }

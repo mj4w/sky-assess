@@ -1,10 +1,12 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
+import { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, HelpCircle } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
+import NavigationGuideOverlay from "@/components/NavigationGuideOverlay"
 import { usePilotData } from "@/hooks/usePilotData"
+import { useNavigationGuide } from "@/hooks/useNavigationGuide"
 import { supabase } from "@/lib/supabase"
 
 interface SessionItem {
@@ -35,6 +37,39 @@ function TasksPageContent() {
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [instructorNames, setInstructorNames] = useState<Record<string, string>>({})
   const [idCandidates, setIdCandidates] = useState<string[]>([])
+  const headerRef = useRef<HTMLDivElement | null>(null)
+  const listRef = useRef<HTMLDivElement | null>(null)
+  const lessonRef = useRef<HTMLDivElement | null>(null)
+  const guideSteps = useMemo(
+    () => [
+      {
+        key: "header",
+        title: "Assigned Flight Schedule",
+        description: "This page lists the flights assigned to you by Flight Operations across different dates.",
+        ref: headerRef,
+      },
+      {
+        key: "list",
+        title: "Schedule Details",
+        description: "Each card contains the student, instructor, date, aircraft registry, duration, and assigned time block.",
+        ref: listRef,
+      },
+      {
+        key: "lesson",
+        title: "Lesson Number Entry",
+        description: "Enter your lesson number here. Once it is saved, the lesson field becomes locked for that assignment.",
+        ref: lessonRef,
+      },
+    ],
+    []
+  )
+
+  const guide = useNavigationGuide({
+    enabled: pilotData?.role === "student",
+    userId: pilotData?.id,
+    pageKey: "student-dashboard-tasks",
+    steps: guideSteps,
+  })
 
   useEffect(() => {
     if (!pilotData) return
@@ -153,18 +188,29 @@ function TasksPageContent() {
   }
 
   return (
+    <>
     <div className="min-h-screen bg-[#FDFDFD] p-8 lg:p-12 space-y-6">
-      <div>
-        <Link
-          href={`/dashboard/${pilotData.role}/${pilotData.id}`}
-          className="inline-flex items-center gap-2 text-slate-400 hover:text-blue-900 transition-colors text-[10px] font-black uppercase tracking-[0.2em] mb-4"
+      <div ref={headerRef} className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <Link
+            href={`/dashboard/${pilotData.role}/${pilotData.id}`}
+            className="inline-flex items-center gap-2 text-slate-400 hover:text-blue-900 transition-colors text-[10px] font-black uppercase tracking-[0.2em] mb-4"
+          >
+            <ArrowLeft size={14} /> Back to Terminal
+          </Link>
+          <h1 className="text-3xl font-black italic uppercase text-slate-900 tracking-tight">
+            Assigned <span className="text-blue-900">Flight Schedule</span>
+          </h1>
+          <p className="text-slate-400 text-sm font-medium">Your assigned flight schedules and lesson entries</p>
+        </div>
+        <button
+          type="button"
+          onClick={guide.openGuide}
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-700 hover:border-blue-900 hover:text-blue-900"
         >
-          <ArrowLeft size={14} /> Back to Terminal
-        </Link>
-        <h1 className="text-3xl font-black italic uppercase text-slate-900 tracking-tight">
-          Assigned <span className="text-blue-900">Flight Schedule</span>
-        </h1>
-        <p className="text-slate-400 text-sm font-medium">Your assigned flight schedules and lesson entries</p>
+          <HelpCircle size={14} />
+          {guide.guideCompleted ? "Replay Tour" : "Start Tour"}
+        </button>
       </div>
 
       {sessions.length === 0 ? (
@@ -172,7 +218,7 @@ function TasksPageContent() {
           No assigned flights found.
         </div>
       ) : (
-        <div className="space-y-3">
+        <div ref={listRef} className="space-y-3">
           {sessions.map((session) => (
             <div
               key={session.id}
@@ -208,7 +254,7 @@ function TasksPageContent() {
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Assigned Session</p>
                   <p className="text-sm font-bold text-slate-800">{session.timeLabel} - {session.flightType}</p>
                 </div>
-                <div className="space-y-1 lg:col-span-3">
+                <div ref={highlightedId === session.id || sessions[0]?.id === session.id ? lessonRef : undefined} className="space-y-1 lg:col-span-3">
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Lesson No.</p>
                   <div className="flex gap-2">
                     <input
@@ -248,6 +294,19 @@ function TasksPageContent() {
         <p className="text-xs font-semibold text-blue-700">{saveMessage}</p>
       )}
     </div>
+    <NavigationGuideOverlay
+      showGuide={guide.showGuide}
+      activeRect={guide.activeRect}
+      activeStep={guide.activeStep}
+      stepIndex={guide.stepIndex}
+      totalSteps={guide.totalSteps}
+      showConfetti={guide.showConfetti}
+      confettiPieces={guide.confettiPieces}
+      onPrevious={guide.previousStep}
+      onNext={guide.nextStep}
+      onSkip={guide.skipGuide}
+    />
+    </>
   )
 }
 

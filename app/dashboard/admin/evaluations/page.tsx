@@ -1,9 +1,11 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
-import { ArrowLeft, ArrowRight, ClipboardCheck, ShieldCheck, Star } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { ArrowLeft, ArrowRight, ClipboardCheck, HelpCircle, ShieldCheck, Star } from "lucide-react"
 import { useRouter } from "next/navigation"
+import NavigationGuideOverlay from "@/components/NavigationGuideOverlay"
+import { useNavigationGuide } from "@/hooks/useNavigationGuide"
 import { supabase } from "@/lib/supabase"
 
 interface InstructorRow {
@@ -27,6 +29,46 @@ export default function AdminEvaluationDirectoryPage() {
   const [loadingData, setLoadingData] = useState(true)
   const [message, setMessage] = useState("")
   const [rows, setRows] = useState<InstructorEvaluationSummary[]>([])
+  const [adminUserId, setAdminUserId] = useState("")
+  const heroRef = useRef<HTMLDivElement | null>(null)
+  const statsRef = useRef<HTMLDivElement | null>(null)
+  const directoryRef = useRef<HTMLDivElement | null>(null)
+  const cardRef = useRef<HTMLAnchorElement | null>(null)
+  const guideSteps = useMemo(
+    () => [
+      {
+        key: "hero",
+        title: "Evaluation Directory Overview",
+        description: "This page gives administrators a high-level directory of instructor evaluation records.",
+        ref: heroRef,
+      },
+      {
+        key: "stats",
+        title: "Evaluation Summary Metrics",
+        description: "These counters summarize how many instructors exist, how many have responses, and the total number of submissions.",
+        ref: statsRef,
+      },
+      {
+        key: "directory",
+        title: "Instructor Directory Grid",
+        description: "This grid lists all instructors and shows how many anonymous evaluation responses each one has received.",
+        ref: directoryRef,
+      },
+      {
+        key: "card",
+        title: "Instructor Evaluation Card",
+        description: "Open any card to view the detailed anonymous evaluation record for that instructor.",
+        ref: cardRef,
+      },
+    ],
+    []
+  )
+  const guide = useNavigationGuide({
+    enabled: !checkingAccess && Boolean(adminUserId),
+    userId: adminUserId || undefined,
+    pageKey: "admin-dashboard-evaluations-directory",
+    steps: guideSteps,
+  })
 
   useEffect(() => {
     const load = async () => {
@@ -53,6 +95,7 @@ export default function AdminEvaluationDirectoryPage() {
         return
       }
 
+      setAdminUserId(user.id)
       setCheckingAccess(false)
       setLoadingData(true)
 
@@ -109,19 +152,29 @@ export default function AdminEvaluationDirectoryPage() {
   return (
     <div className="min-h-screen bg-[#FDFDFD] p-6 lg:p-10">
       <div className="mx-auto max-w-7xl space-y-6">
-        <Link
-          href="/dashboard/admin"
-          className="inline-flex items-center gap-2 text-slate-500 hover:text-blue-900 transition-colors text-[10px] font-black uppercase tracking-[0.2em]"
-        >
-          <ArrowLeft size={14} /> Back to Admin
-        </Link>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link
+            href="/dashboard/admin"
+            className="inline-flex items-center gap-2 text-slate-500 hover:text-blue-900 transition-colors text-[10px] font-black uppercase tracking-[0.2em]"
+          >
+            <ArrowLeft size={14} /> Back to Admin
+          </Link>
+          <button
+            type="button"
+            onClick={guide.openGuide}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-700 hover:border-blue-900 hover:text-blue-900"
+          >
+            <HelpCircle size={14} />
+            {guide.guideCompleted ? "Replay Tour" : "Start Tour"}
+          </button>
+        </div>
 
         <section className="rounded-3xl border border-slate-200 bg-white shadow-xl overflow-hidden">
-          <div className="px-6 py-6 md:px-8 md:py-8 bg-linear-to-r from-slate-900 via-blue-900 to-blue-800">
+          <div ref={heroRef} className="px-6 py-6 md:px-8 md:py-8 bg-linear-to-r from-slate-900 via-blue-900 to-blue-800">
             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-100">Admin Review</p>
             <h1 className="mt-2 text-3xl md:text-4xl font-black tracking-tight text-white">Instructor Evaluation Directory</h1>
             <p className="mt-1 text-xs font-semibold text-blue-100/80">Open any instructor record to review anonymous student evaluation details.</p>
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <div ref={statsRef} className="mt-5 grid gap-3 sm:grid-cols-3">
               <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3">
                 <p className="text-[10px] font-black uppercase tracking-widest text-blue-100">Instructors</p>
                 <p className="mt-1 text-2xl font-black text-white">{stats.instructorCount}</p>
@@ -148,9 +201,10 @@ export default function AdminEvaluationDirectoryPage() {
                 No instructors found.
               </div>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {rows.map((row) => (
+              <div ref={directoryRef} className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {rows.map((row, index) => (
                   <Link
+                    ref={index === 0 ? cardRef : undefined}
                     key={row.instructorId}
                     href={`/dashboard/admin/evaluations/${encodeURIComponent(row.instructorId)}`}
                     className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-blue-900 hover:shadow-lg"
@@ -183,6 +237,18 @@ export default function AdminEvaluationDirectoryPage() {
           </div>
         </section>
       </div>
+      <NavigationGuideOverlay
+        showGuide={guide.showGuide}
+        activeRect={guide.activeRect}
+        activeStep={guide.activeStep}
+        stepIndex={guide.stepIndex}
+        totalSteps={guide.totalSteps}
+        showConfetti={guide.showConfetti}
+        confettiPieces={guide.confettiPieces}
+        onPrevious={guide.previousStep}
+        onNext={guide.nextStep}
+        onSkip={guide.skipGuide}
+      />
     </div>
   )
 }

@@ -1,10 +1,12 @@
 "use client"
 
-import { FormEvent, useEffect, useMemo, useState } from "react"
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, AlertTriangle, Plus, Pencil, X } from "lucide-react"
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react"
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, AlertTriangle, HelpCircle, Plus, Pencil, X } from "lucide-react"
+import NavigationGuideOverlay from "@/components/NavigationGuideOverlay"
 import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import SkyAssessLogo from "@/components/SkyAssessLogo"
+import { useNavigationGuide } from "@/hooks/useNavigationGuide"
 
 const flightTypeOptions = [
   { code: "PS", label: "Pre-Solo Simulator", colorClass: "bg-violet-100 border-violet-300" },
@@ -233,6 +235,45 @@ export default function DispatchCalendar() {
   const [checkingAccess, setCheckingAccess] = useState(true)
   const [loadingDayData, setLoadingDayData] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const headerRef = useRef<HTMLDivElement | null>(null)
+  const calendarRef = useRef<HTMLDivElement | null>(null)
+  const tableRef = useRef<HTMLDivElement | null>(null)
+  const legendRef = useRef<HTMLDivElement | null>(null)
+  const guideSteps = useMemo(
+    () => [
+      {
+        key: "header",
+        title: "Flight Operations Header",
+        description: "This area shows the selected operating date and the main controls for navigating the schedule.",
+        ref: headerRef,
+      },
+      {
+        key: "calendar",
+        title: "Date Navigation",
+        description: "Use the date selector and arrows here to move between daily flight operation schedules.",
+        ref: calendarRef,
+      },
+      {
+        key: "table",
+        title: "Assignment Grid",
+        description: "This grid is where you add, edit, drag, and review aircraft slot assignments for students and instructors.",
+        ref: tableRef,
+      },
+      {
+        key: "legend",
+        title: "Flight Type Legend",
+        description: "Use the legend to understand the meaning of each flight code and aircraft status color in the schedule.",
+        ref: legendRef,
+      },
+    ],
+    []
+  )
+  const guide = useNavigationGuide({
+    enabled: !checkingAccess && Boolean(currentUserId),
+    userId: currentUserId || undefined,
+    pageKey: "flight-ops-dashboard",
+    steps: guideSteps,
+  })
 
   useEffect(() => {
     const guardFlightOpsRoute = async () => {
@@ -782,7 +823,7 @@ export default function DispatchCalendar() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 p-4 lg:p-8">
       <div className="max-w-425 mx-auto space-y-4">
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 lg:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div ref={headerRef} className="bg-white border border-slate-200 rounded-2xl p-4 lg:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <SkyAssessLogo className="h-9 w-9 shrink-0" />
             <div>
@@ -792,7 +833,7 @@ export default function DispatchCalendar() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          <div ref={calendarRef} className="flex items-center gap-2 flex-wrap">
             <button onClick={() => setDateValue((d) => addDays(d, -1))} className="h-9 w-9 rounded-lg border border-slate-200 hover:bg-slate-50 flex items-center justify-center">
               <ChevronLeft size={16} />
             </button>
@@ -804,6 +845,16 @@ export default function DispatchCalendar() {
               <ChevronRight size={16} />
             </button>
             <input type="date" value={dateValue} onChange={(e) => setDateValue(e.target.value)} className="h-9 px-3 rounded-lg border border-slate-200 text-sm" />
+            <button
+              type="button"
+              onClick={guide.openGuide}
+              className="h-9 px-3 rounded-lg border border-blue-200 bg-blue-50 text-xs font-bold uppercase tracking-widest text-blue-800 hover:bg-blue-100"
+            >
+              <span className="inline-flex items-center gap-2">
+                <HelpCircle size={14} />
+                {guide.guideCompleted ? "Replay Tour" : "Start Tour"}
+              </span>
+            </button>
             <button
               type="button"
               onClick={handleLogout}
@@ -826,7 +877,7 @@ export default function DispatchCalendar() {
           </div>
         ) : null}
 
-        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+        <div ref={tableRef} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full min-w-387.5 border-collapse">
               <thead>
@@ -981,7 +1032,7 @@ export default function DispatchCalendar() {
             </table>
           </div>
 
-          <div className="p-4 border-t border-slate-200 space-y-2">
+          <div ref={legendRef} className="p-4 border-t border-slate-200 space-y-2">
             <p className="text-[11px] font-black uppercase tracking-widest text-slate-600">Legend</p>
             <div className="overflow-x-auto">
               <table className="w-full min-w-170 border-collapse">
@@ -1215,6 +1266,19 @@ export default function DispatchCalendar() {
           </div>
         </div>
       )}
+
+      <NavigationGuideOverlay
+        showGuide={guide.showGuide}
+        activeRect={guide.activeRect}
+        activeStep={guide.activeStep}
+        stepIndex={guide.stepIndex}
+        totalSteps={guide.totalSteps}
+        showConfetti={guide.showConfetti}
+        confettiPieces={guide.confettiPieces}
+        onPrevious={guide.previousStep}
+        onNext={guide.nextStep}
+        onSkip={guide.skipGuide}
+      />
     </div>
   )
 }

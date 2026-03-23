@@ -1,9 +1,11 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { BellRing, CalendarDays, CheckCircle2, CircleDashed, Loader2, UserRound, Users } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { BellRing, CalendarDays, CheckCircle2, CircleDashed, HelpCircle, Loader2, UserRound, Users } from "lucide-react"
 import { useRouter } from "next/navigation"
+import NavigationGuideOverlay from "@/components/NavigationGuideOverlay"
 import { usePilotData } from "@/hooks/usePilotData"
+import { useNavigationGuide } from "@/hooks/useNavigationGuide"
 import { supabase } from "@/lib/supabase"
 import { DebriefCourseModal } from "@/components/DebriefCourseModal"
 
@@ -89,6 +91,52 @@ export default function InstructorDirectoryPage() {
   const [datePage, setDatePage] = useState(1)
   const schedulePageSize = 3
   const datePageSize = 3
+  const heroRef = useRef<HTMLDivElement | null>(null)
+  const actionsRef = useRef<HTMLDivElement | null>(null)
+  const metricsRef = useRef<HTMLDivElement | null>(null)
+  const scheduleRef = useRef<HTMLDivElement | null>(null)
+  const studentCardRef = useRef<HTMLDivElement | null>(null)
+  const guideSteps = useMemo(
+    () => [
+      {
+        key: "hero",
+        title: "Instructor Dashboard Overview",
+        description: "This header summarizes your dashboard and keeps your current instructor schedule context visible.",
+        ref: heroRef,
+      },
+      {
+        key: "actions",
+        title: "Evaluation and Notification Actions",
+        description: "Use these controls to open student evaluations and send pending lesson-number reminders.",
+        ref: actionsRef,
+      },
+      {
+        key: "metrics",
+        title: "Instructor Metrics",
+        description: "These counters summarize your scheduled days, total student slots, and pending notifications.",
+        ref: metricsRef,
+      },
+      {
+        key: "schedule",
+        title: "Daily Flight Schedule",
+        description: "This section groups your students by flight date so you can review who is assigned each day.",
+        ref: scheduleRef,
+      },
+      {
+        key: "student-card",
+        title: "Student Action Card",
+        description: "Each student card shows lesson number status, aircraft details, and your Debrief or Notify actions.",
+        ref: studentCardRef,
+      },
+    ],
+    []
+  )
+  const guide = useNavigationGuide({
+    enabled: pilotData?.role === "instructor",
+    userId: pilotData?.id,
+    pageKey: "instructor-dashboard-home",
+    steps: guideSteps,
+  })
 
   const instructorDisplayName = useMemo(() => {
     const name = String(pilotData?.full_name || "").trim()
@@ -359,11 +407,11 @@ export default function InstructorDirectoryPage() {
     <div className="min-h-screen bg-linear-to-b from-slate-100 via-slate-50 to-white dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 p-6 lg:p-10">
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl shadow-slate-200/60 dark:shadow-slate-950/50 overflow-hidden">
-          <div className="px-6 py-6 md:px-8 md:py-8 border-b border-slate-100 dark:border-slate-700 bg-linear-to-r from-blue-950 via-blue-900 to-blue-800">
+          <div ref={heroRef} className="px-6 py-6 md:px-8 md:py-8 border-b border-slate-100 dark:border-slate-700 bg-linear-to-r from-blue-950 via-blue-900 to-blue-800">
             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-100/90">Flight Instructor Dashboard</p>
             <h1 className="mt-2 text-3xl md:text-4xl font-black tracking-tight text-white">{`Instructor. ${instructorDisplayName}`}</h1>
             <p className="mt-1 text-xs font-semibold text-blue-100/80">Flight assignments, debrief status, and student action tracking</p>
-            <div className="mt-5 flex flex-wrap gap-2">
+            <div ref={actionsRef} className="mt-5 flex flex-wrap gap-2">
               <button type="button" onClick={handleOpenEvaluation} className="inline-flex items-center gap-2 rounded-lg bg-white text-blue-900 hover:bg-blue-50 px-4 py-2 text-[11px] font-black uppercase tracking-wider transition-colors">
                 Open Evaluation
                 {evaluationNotifyCount > 0 ? (
@@ -376,8 +424,16 @@ export default function InstructorDirectoryPage() {
                 <BellRing size={14} />
                 Notify Pending ({pendingNotifyCount})
               </button>
+              <button
+                type="button"
+                onClick={guide.openGuide}
+                className="inline-flex items-center gap-2 rounded-lg border border-white/25 bg-white/10 px-4 py-2 text-[11px] font-black uppercase tracking-wider text-white transition-colors hover:bg-white/20"
+              >
+                <HelpCircle size={14} />
+                {guide.guideCompleted ? "Replay Tour" : "Start Tour"}
+              </button>
             </div>
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <div ref={metricsRef} className="mt-5 grid gap-3 sm:grid-cols-3">
               <div className="rounded-xl border border-white/20 bg-white/10 backdrop-blur px-4 py-3">
                 <p className="text-[10px] font-black uppercase tracking-widest text-blue-100">Scheduled Days</p>
                 <p className="mt-1 text-2xl font-black text-white">{groups.length}</p>
@@ -393,7 +449,7 @@ export default function InstructorDirectoryPage() {
             </div>
           </div>
 
-          <div className="p-4 md:p-6 space-y-4 bg-slate-50/50 dark:bg-slate-900/80">
+          <div ref={scheduleRef} className="p-4 md:p-6 space-y-4 bg-slate-50/50 dark:bg-slate-900/80">
             {noticeMessage ? <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs font-semibold text-blue-800">{noticeMessage}</div> : null}
             {groups.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-6 py-10 text-center">
@@ -448,8 +504,8 @@ export default function InstructorDirectoryPage() {
                         ((schedulePageByDate[group.date] || 1) - 1) * schedulePageSize,
                         ((schedulePageByDate[group.date] || 1) - 1) * schedulePageSize + schedulePageSize
                       )
-                      .map((student) => (
-                      <div key={`${group.date}-${student.assignmentId}`} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-4 space-y-3 shadow-sm hover:shadow-md transition-shadow">
+                      .map((student, index) => (
+                      <div ref={index === 0 ? studentCardRef : undefined} key={`${group.date}-${student.assignmentId}`} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-4 space-y-3 shadow-sm hover:shadow-md transition-shadow">
                         <p className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                           <UserRound size={14} className="text-slate-400" />
                           {student.studentName}
@@ -584,6 +640,18 @@ export default function InstructorDirectoryPage() {
         </div>
       </div>
       <DebriefCourseModal open={showDebriefModal} onClose={() => setShowDebriefModal(false)} assignmentId={selectedAssignmentId} />
+      <NavigationGuideOverlay
+        showGuide={guide.showGuide}
+        activeRect={guide.activeRect}
+        activeStep={guide.activeStep}
+        stepIndex={guide.stepIndex}
+        totalSteps={guide.totalSteps}
+        showConfetti={guide.showConfetti}
+        confettiPieces={guide.confettiPieces}
+        onPrevious={guide.previousStep}
+        onNext={guide.nextStep}
+        onSkip={guide.skipGuide}
+      />
     </div>
   )
 }
