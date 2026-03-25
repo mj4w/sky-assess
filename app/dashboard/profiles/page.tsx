@@ -192,6 +192,14 @@ export default function InstructorDirectoryPage() {
       const emailMap: Record<string, string> = {}
       const completedAssignmentIds = new Set<string>()
       const completedStudentDateKeys = new Set<string>()
+      const assignmentCountByStudentDate = rows.reduce<Record<string, number>>((acc, row) => {
+        const studentId = String(row.student_id || "").trim().toLowerCase()
+        const opDate = String(row.op_date || "").trim()
+        if (!studentId || !opDate) return acc
+        const key = `${studentId}__${opDate}`
+        acc[key] = (acc[key] || 0) + 1
+        return acc
+      }, {})
 
       if (studentCandidates.length > 0) {
         const { data: studentRows } = await supabase
@@ -259,7 +267,8 @@ export default function InstructorDirectoryPage() {
         const lessonNo = String(row.lesson_no || "").trim()
         const assignmentId = String(row.id || "")
         const studentDateKey = `${studentIdRaw.toLowerCase()}__${date}`
-        const isDebriefCompleted = completedAssignmentIds.has(assignmentId) || completedStudentDateKeys.has(studentDateKey)
+        const canUseFallbackDateMatch = (assignmentCountByStudentDate[studentDateKey] || 0) === 1
+        const isDebriefCompleted = completedAssignmentIds.has(assignmentId) || (canUseFallbackDateMatch && completedStudentDateKeys.has(studentDateKey))
         const nextValue = {
           assignmentId,
           studentId: studentIdRaw,
