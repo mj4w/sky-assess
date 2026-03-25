@@ -2,6 +2,10 @@
 
 SkyAssess is a Next.js 16 + Supabase flight training platform for registration, scheduling, debriefing, and evaluations.
 
+## Architecture documentation
+
+- `ARCHITECTURE_README.md` - system design, data flow diagram, and use case diagram
+
 ## 1) Local setup
 
 ```bash

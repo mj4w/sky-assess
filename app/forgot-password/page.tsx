@@ -34,6 +34,9 @@ export default function ForgotPasswordPage() {
 
     setMessage("Password reset link sent. Check your email to continue.")
     setLoading(false)
+    console.log("window.location.origin", window.location.origin)
+    console.log("redirectTo", redirectTo)
+
   }
 
   return (
