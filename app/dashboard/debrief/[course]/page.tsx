@@ -163,6 +163,14 @@ function PPLDebriefPageContent() {
       const studentCandidates = [...new Set(studentIds.flatMap((value) => [value, value.toLowerCase(), value.toUpperCase()]))]
       const completedAssignmentIds = new Set<string>()
       const completedStudentDateKeys = new Set<string>()
+      const assignmentCountByStudentDate = data.reduce<Record<string, number>>((acc, row) => {
+        const studentId = String(row.student_id || "").trim().toLowerCase()
+        const opDate = String(row.op_date || todayDate).trim()
+        if (!studentId || !opDate) return acc
+        const key = `${studentId}__${opDate}`
+        acc[key] = (acc[key] || 0) + 1
+        return acc
+      }, {})
 
       if (assignmentIds.length > 0 || studentCandidates.length > 0) {
         const debriefQuery = supabase
@@ -194,12 +202,13 @@ function PPLDebriefPageContent() {
         const studentId = String(row.student_id || "")
         const opDate = String(row.op_date || todayDate)
         const studentDateKey = `${studentId.trim().toLowerCase()}__${opDate}`
+        const canUseFallbackDateMatch = (assignmentCountByStudentDate[studentDateKey] || 0) === 1
         return {
           id: assignmentId,
           aircraftType: String(row.aircraft_type || ""),
           aircraftRegistry: String(row.aircraft_registry || ""),
           lessonNo: String(row.lesson_no || ""),
-          debriefCompleted: completedAssignmentIds.has(assignmentId) || completedStudentDateKeys.has(studentDateKey),
+          debriefCompleted: completedAssignmentIds.has(assignmentId) || (canUseFallbackDateMatch && completedStudentDateKeys.has(studentDateKey)),
           opDate,
           slotSpan: span,
           timeLabel: `${slotToHour(start)} - ${slotToHour(end)}`,
