@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
-import React, { Suspense, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { User, Lock, Mail, Loader2, Eye, EyeOff, ArrowLeft, ShieldCheck, AlertCircle } from "lucide-react";
 import DataPrivacyGate from "@/components/data-privacy-gate";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import SkyAssessLogo from '@/components/SkyAssessLogo';
 import ForceLightMode from '@/components/ForceLightMode';
 
@@ -28,6 +28,7 @@ const FormInput = ({ label, icon: Icon, ...props }: any) => (
 );
 
 function RegisterPageContent() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const nextUrl = searchParams.get("next")
   const [loading, setLoading] = useState(false);
@@ -40,6 +41,54 @@ function RegisterPageContent() {
     password: '',
     role: 'student' as 'student' | 'instructor'
   });
+
+  useEffect(() => {
+    const resolveExistingSession = async () => {
+      const { data: authData } = await supabase.auth.getUser()
+      const user = authData.user
+      if (!user) return
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role, student_id, instructor_id")
+        .eq("id", user.id)
+        .maybeSingle()
+
+      const role = String(profile?.role || "").toLowerCase()
+      const hasStructuredProfile =
+        (role === "student" && Boolean(String(profile?.student_id || "").trim())) ||
+        (role === "instructor" && Boolean(String(profile?.instructor_id || "").trim())) ||
+        role === "admin" ||
+        role === "flightops"
+
+      if (!profile || !hasStructuredProfile) {
+        const onboardingUrl = nextUrl
+          ? `/auth/google-onboarding?next=${encodeURIComponent(nextUrl)}`
+          : "/auth/google-onboarding"
+        router.replace(onboardingUrl)
+        return
+      }
+
+      if (nextUrl && nextUrl.startsWith("/")) {
+        router.replace(nextUrl)
+        return
+      }
+
+      if (role === "admin") {
+        router.replace("/dashboard/admin")
+        return
+      }
+
+      if (role === "flightops") {
+        router.replace("/flight-ops")
+        return
+      }
+
+      router.replace(`/dashboard/${role || "student"}/${user.id}`)
+    }
+
+    void resolveExistingSession()
+  }, [nextUrl, router])
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
