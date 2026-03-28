@@ -35,6 +35,7 @@ function LoginPageContent() {
   const searchParams = useSearchParams();
   const nextUrl = searchParams.get("next");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [formData, setFormData] = useState({ loginId: '', password: '' });
@@ -43,8 +44,57 @@ function LoginPageContent() {
   useEffect(() => {
     if (searchParams.get('expired') === 'true') setError("Session expired. Please login again.");
     if (searchParams.get('registered') === 'true') setSuccessMsg("Registered Successful! Access your flight deck below.");
+    if (searchParams.get('oauth_error')) setError(searchParams.get('oauth_error'));
     
   }, [searchParams]);
+
+  useEffect(() => {
+    const resolveExistingSession = async () => {
+      const { data: authData } = await supabase.auth.getUser()
+      const user = authData.user
+      if (!user) return
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role, student_id, instructor_id")
+        .eq("id", user.id)
+        .maybeSingle()
+
+      const role = String(profile?.role || "").toLowerCase()
+      const hasStructuredProfile =
+        (role === "student" && Boolean(String(profile?.student_id || "").trim())) ||
+        (role === "instructor" && Boolean(String(profile?.instructor_id || "").trim())) ||
+        role === "admin" ||
+        role === "flightops"
+
+      if (!profile || !hasStructuredProfile) {
+        const onboardingUrl = nextUrl
+          ? `/auth/google-onboarding?next=${encodeURIComponent(nextUrl)}`
+          : "/auth/google-onboarding"
+        router.replace(onboardingUrl)
+        return
+      }
+
+      if (nextUrl && nextUrl.startsWith("/")) {
+        router.replace(nextUrl)
+        return
+      }
+
+      if (role === "admin") {
+        router.replace("/dashboard/admin")
+        return
+      }
+
+      if (role === "flightops") {
+        router.replace("/flight-ops")
+        return
+      }
+
+      router.replace(`/dashboard/${role || "student"}/${user.id}`)
+    }
+
+    void resolveExistingSession()
+  }, [nextUrl, router]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -153,6 +203,34 @@ function LoginPageContent() {
       setError(err.message || "Invalid credentials.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setGoogleLoading(true);
+    setError(null);
+    try {
+      const currentOrigin = typeof window !== "undefined" ? window.location.origin : (process.env.NEXT_PUBLIC_APP_URL || "");
+      const redirectBase = currentOrigin || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      const redirectTo = nextUrl
+        ? `${redirectBase}/auth/callback?next=${encodeURIComponent(nextUrl)}`
+        : `${redirectBase}/auth/callback`;
+
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo,
+          queryParams: {
+            access_type: "offline",
+            prompt: "select_account",
+          },
+        },
+      });
+
+      if (oauthError) throw oauthError;
+    } catch (err: any) {
+      setError(err?.message || "Unable to continue with Google.");
+      setGoogleLoading(false);
     }
   };
 
@@ -294,6 +372,35 @@ function LoginPageContent() {
               )}
             </Button>
           </form>
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-slate-200" />
+              <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">or</span>
+              <div className="h-px flex-1 bg-slate-200" />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={googleLoading}
+              className="w-full h-12 rounded-md border border-slate-200 bg-white text-slate-700 font-bold uppercase tracking-widest text-xs transition-all hover:border-blue-200 hover:bg-blue-50 flex items-center justify-center gap-3 disabled:opacity-60"
+            >
+              {googleLoading ? (
+                <Loader2 className="animate-spin" size={16} />
+              ) : (
+                <>
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+                    <path fill="#EA4335" d="M12 10.2v3.9h5.5c-.2 1.3-1.5 3.9-5.5 3.9-3.3 0-6-2.7-6-6s2.7-6 6-6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.7 3.3 14.6 2.4 12 2.4 6.7 2.4 2.4 6.7 2.4 12S6.7 21.6 12 21.6c6.9 0 9.1-4.8 9.1-7.2 0-.5 0-.8-.1-1.2H12Z" />
+                    <path fill="#34A853" d="M2.4 12c0 5.3 4.3 9.6 9.6 9.6 5.5 0 9.1-3.8 9.1-9.2 0-.6-.1-1.1-.2-1.6H12v3.9h5.5c-.3 1.5-1.8 3.3-5.5 3.3-3.3 0-6-2.7-6-6H2.4Z" opacity=".01" />
+                    <path fill="#FBBC05" d="M4.6 7.4 7.8 9.7C8.7 7.6 10.2 6 12 6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.7 3.3 14.6 2.4 12 2.4 8.3 2.4 5 4.5 3.4 7.6l1.2-.2Z" />
+                    <path fill="#4285F4" d="M21.1 10.8H12v3.9h5.5c-.3 1.5-1.8 3.3-5.5 3.3-3.3 0-6-2.7-6-6 0-1 .2-1.9.6-2.8L3.4 7.6A9.6 9.6 0 0 0 2.4 12c0 5.3 4.3 9.6 9.6 9.6 5.5 0 9.1-3.8 9.1-9.2 0-.6-.1-1.1-.2-1.6Z" opacity=".9" />
+                  </svg>
+                  Continue with Google
+                </>
+              )}
+            </button>
+          </div>
 
           <div className="pt-6 border-t border-slate-100 flex flex-col items-center gap-4">
             <p className="text-sm text-slate-500">
