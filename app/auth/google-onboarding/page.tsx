@@ -20,6 +20,53 @@ function resolveDestination(role: UserRole, userId: string, nextUrl: string | nu
   return `/dashboard/${role}/${userId}`
 }
 
+async function savePersonnelRecord(role: UserRole, personnelId: string, fullName: string) {
+  if (role === "student") {
+    const { data: existingStudent } = await supabase
+      .from("student_info")
+      .select("student_id")
+      .eq("student_id", personnelId)
+      .limit(1)
+      .maybeSingle()
+
+    if (existingStudent?.student_id) {
+      const { error } = await supabase
+        .from("student_info")
+        .update({ full_name: fullName })
+        .eq("student_id", personnelId)
+      if (error) throw error
+      return
+    }
+
+    const { error } = await supabase
+      .from("student_info")
+      .insert([{ student_id: personnelId, full_name: fullName }])
+    if (error) throw error
+    return
+  }
+
+  const { data: existingInstructor } = await supabase
+    .from("instructor_info")
+    .select("instructor_id")
+    .eq("instructor_id", personnelId)
+    .limit(1)
+    .maybeSingle()
+
+  if (existingInstructor?.instructor_id) {
+    const { error } = await supabase
+      .from("instructor_info")
+      .update({ full_name: fullName })
+      .eq("instructor_id", personnelId)
+    if (error) throw error
+    return
+  }
+
+  const { error } = await supabase
+    .from("instructor_info")
+    .insert([{ instructor_id: personnelId, full_name: fullName }])
+  if (error) throw error
+}
+
 export default function GoogleOnboardingPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
@@ -92,17 +139,7 @@ export default function GoogleOnboardingPage() {
       const { error: profileError } = await supabase.from("profiles").upsert([profilePayload], { onConflict: "id" })
       if (profileError) throw profileError
 
-      if (role === "student") {
-        const { error: studentInfoError } = await supabase
-          .from("student_info")
-          .upsert([{ student_id: temporaryId, full_name: normalizedName }], { onConflict: "student_id" })
-        if (studentInfoError) throw studentInfoError
-      } else {
-        const { error: instructorInfoError } = await supabase
-          .from("instructor_info")
-          .upsert([{ instructor_id: temporaryId, full_name: normalizedName }], { onConflict: "instructor_id" })
-        if (instructorInfoError) throw instructorInfoError
-      }
+      await savePersonnelRecord(role, temporaryId, normalizedName)
 
       router.replace(resolveDestination(role, userId, nextUrl))
     } catch (err: unknown) {
